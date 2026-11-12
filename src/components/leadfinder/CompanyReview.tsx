@@ -248,7 +248,7 @@ export function CompanyReview({
             <button className="btn btn-primary btn-sm" disabled={!unsent.length} onClick={sendNow}
               title={!unsent.length && !sentCount ? "Tick at least one person with a verified or risky email" : undefined}>
               <Send size={14} aria-hidden="true" />
-              {unsent.length ? `Send ${unsent.length}` : sentCount ? "Sent" : "Send"}
+              {!unsent.length && sentCount ? "Sent" : "Send"}
             </button>
           )}
           {done && !sentCount && (
