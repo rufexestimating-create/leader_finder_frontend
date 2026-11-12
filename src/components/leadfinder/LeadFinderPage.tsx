@@ -100,6 +100,9 @@ export function LeadFinderPage({
     return () => clearTimeout(first);
   }, [load, loadSettings]);
 
+  // Refresh tool status whenever the user navigates back to dashboard so the banner disappears instantly
+  useEffect(() => { if (view === "dashboard") loadSettings(true); }, [view, loadSettings]);
+
   const busy = companies.some((c) => c.status === "queued" || c.status === "enriching");
   useEffect(() => {
     const timer = setInterval(load, busy ? BUSY_MS : IDLE_MS);
