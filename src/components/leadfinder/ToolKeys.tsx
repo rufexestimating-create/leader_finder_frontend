@@ -31,7 +31,7 @@ const CARDS: { provider: Provider; name: string; required?: boolean; does: strin
     provider: "serper",
     name: "Serper (Google)",
     does: "Finds a website Hunter can't, and adds the Google rating, phone, address and recent news.",
-    link: "https://serper.dev",
+    link: "https://serper.dev/api-keys",
     switches: [{ tool: "serper", label: "Website search" }, { tool: "places", label: "Google rating" }],
   },
   {
