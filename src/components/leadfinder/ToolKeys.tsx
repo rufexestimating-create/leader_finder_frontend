@@ -171,7 +171,7 @@ export function ToolKeys({
         <ul className="lf-keys">
           {CARDS.map((card) => {
             const p = card.provider;
-            const state = keys[p];
+            const state = keys[p] ?? { connected: false, last4: null };
             const connected = state.connected;
             const showForm = !connected || !!editing[p];
             const working = busy === p;
