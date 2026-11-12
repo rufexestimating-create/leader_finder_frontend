@@ -147,13 +147,21 @@ export function toSearchBody(f: SearchFilters) {
 
 /* ---------- Settings ---------- */
 
+const DEFAULT_STATUS: Record<ToolId, ToolStatus> = {
+  hunter: { connected: false, on: true }, serper: { connected: false, on: true },
+  verifier: { connected: false, on: true }, places: { connected: false, on: true },
+  ai: { connected: false, on: true }, apollo: { connected: false, on: true },
+  gplaces: { connected: false, on: true }, openai: { connected: false, on: true },
+  pdl: { connected: false, on: true },
+};
+
 export function toSettings(r: Row): { settings: FinderSettings; status: Record<ToolId, ToolStatus> } {
   return {
     settings: {
       roles: r.roles, skipSites: r.skip_sites, templates: r.templates, subject: r.subject ?? "", message: r.message ?? "",
       dailyLimit: r.daily_limit, atOnce: r.at_once, tools: r.tools,
     },
-    status: r.tool_status,
+    status: { ...DEFAULT_STATUS, ...(r.tool_status ?? {}) },
   };
 }
 
