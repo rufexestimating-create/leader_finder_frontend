@@ -50,7 +50,20 @@ function toContact(r: Row): Contact {
     linkedin: r.linkedin ?? null,
     personalLine: r.personal_line ?? "",
     selected: !!r.selected,
+    sentAt: r.sent_at ?? null,
+    sendError: r.send_error ?? null,
   };
+}
+
+/** The mailbox emails are sent from; never includes the password */
+export interface Mailbox {
+  connected: boolean;
+  email?: string;
+  from_name?: string;
+  smtp_host?: string;
+  smtp_port?: number;
+  imap_host?: string;
+  imap_port?: number;
 }
 
 /** Always 8 steps, even for a company that was just added */

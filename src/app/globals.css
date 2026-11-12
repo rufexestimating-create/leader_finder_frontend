@@ -3378,6 +3378,11 @@ select.input {
 .lf-key-note.is-ok { background: var(--success-soft); color: var(--success); }
 .lf-key-note.is-bad { background: var(--danger-soft); color: var(--danger); }
 @media (max-width: 640px) { .lf-key-switches { margin-left: 0; width: 100%; } }
+.lf-mailbox-form { display: flex; flex-direction: column; gap: 0.85rem; padding-top: 0.25rem; }
+.lf-mailbox-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem 1rem; }
+.lf-mailbox-advanced summary { cursor: pointer; font-size: 0.84rem; font-weight: 600; color: var(--primary); margin-bottom: 0.6rem; }
+.lf-mailbox-form .btn { border-radius: 999px; }
+.lf-sent-error { display: block; margin-top: 0.2rem; font-size: 0.78rem; color: var(--danger); }
 
 /* Floating save bar: slides up only when something changed */
 .lf-set-save {

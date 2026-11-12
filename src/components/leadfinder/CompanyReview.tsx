@@ -44,6 +44,7 @@ import {
   rolesFor,
   sizeLabel,
 } from "@/lib/leadFinder";
+import type { Mailbox } from "@/lib/leadFinderApi";
 import { Select } from "./Dropdown";
 import { StepProgress, timeAgo } from "./Results";
 
@@ -65,7 +66,9 @@ export function CompanyReview({
   now,
   onBack,
   onChange,
-  onApprove,
+  mailbox,
+  onSend,
+  onOpenMailbox,
   onRetry,
   onRemove,
   confirm,
@@ -75,7 +78,9 @@ export function CompanyReview({
   now: number;
   onBack: () => void;
   onChange: (c: Company) => void;
-  onApprove: (c: Company) => void;
+  mailbox: Mailbox | null;
+  onSend: (c: Company) => Promise<void>;
+  onOpenMailbox: () => void;
   onRetry: (website: string) => void;
   onRemove: () => void;
   confirm: (r: ConfirmRequest) => void;
@@ -99,29 +104,39 @@ export function CompanyReview({
   const working = c.status === "queued" || c.status === "enriching";
   const done = c.status === "ready" || c.status === "approved";
   const picked = c.contacts.filter((p) => p.selected);
-  const risky = picked.filter((p) => p.emailStatus === "catch_all").length;
+  const unsent = picked.filter((p) => !p.sentAt);
+  const sentCount = c.contacts.filter((p) => p.sentAt).length;
+  const risky = unsent.filter((p) => p.emailStatus === "catch_all").length;
   const withEmail = c.contacts.filter((p) => p.email && p.emailStatus !== "invalid");
   const preview = withEmail.find((p) => p.id === previewId) ?? picked[0] ?? withEmail[0];
   const email = preview && done ? renderEmail(settings, c, preview) : null;
 
   const setContact = (id: string, patch: Partial<Contact>) => onChange({ ...c, contacts: c.contacts.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
 
-  const approve = () =>
-    confirm({
-      title: `Approve ${picked.length} ${picked.length === 1 ? "person" : "people"}?`,
-      message: (
-        <>
-          <strong>{picked.map((p) => `${p.name} (${p.email})`).join(", ")}</strong>
-          <span className="lf-dialog-note">
-            Nothing is emailed yet: sending from ReachAgent is connected in a later step. Approving marks them as chosen, with their own personal line.
-            Risky emails will go last, a few at a time.
-          </span>
-        </>
-      ),
-      confirmLabel: "Approve",
-      cancelLabel: "Not yet",
-      onConfirm: () => onApprove(c),
-    });
+  const sendNow = () =>
+    mailbox?.connected
+      ? confirm({
+          title: `Email ${unsent.length} ${unsent.length === 1 ? "person" : "people"} now?`,
+          message: (
+            <>
+              <strong>{unsent.map((p) => `${p.name} (${p.email})`).join(", ")}</strong>
+              <span className="lf-dialog-note">
+                Sent from {mailbox.email}, each with their own personal line. A copy goes to its Sent folder and replies arrive in its inbox.
+                {risky > 0 && ` ${risky} of these ${risky === 1 ? "is" : "are"} risky and may bounce.`}
+              </span>
+            </>
+          ),
+          confirmLabel: `Send ${unsent.length}`,
+          cancelLabel: "Not yet",
+          onConfirm: () => onSend(c),
+        })
+      : confirm({
+          title: "Connect your mailbox first",
+          message: "Emails are sent from your own address, so ReachAgent needs your mailbox login once. It takes a minute in Settings.",
+          confirmLabel: "Open Settings",
+          cancelLabel: "Later",
+          onConfirm: onOpenMailbox,
+        });
 
   const lookAgain = () =>
     confirm({
@@ -178,7 +193,7 @@ export function CompanyReview({
   const stats: [React.ReactNode, string, string, React.ReactNode][] = [
     [<Users key="i" size={18} />, "People found", String(c.contacts.length), "primary"],
     [<BadgeCheck key="i" size={18} />, "Verified emails", String(verified), "success"],
-    [<UserCheck key="i" size={18} />, "Picked to approve", String(picked.length), "info"],
+    [<UserCheck key="i" size={18} />, sentCount ? "Emailed" : "Picked to email", String(sentCount || picked.length), "info"],
     [<ListChecks key="i" size={18} />, "Steps done", `${stepsDone}/${STEPS.length}`, "warm"],
   ];
   const found = c.sources.filter((s) => s.text);
@@ -214,13 +229,13 @@ export function CompanyReview({
           </div>
           <div className="lf-head-actions">
           {done && (
-            <button className="btn btn-primary btn-sm" disabled={!picked.length || c.status === "approved"} onClick={approve}
-              title={!picked.length ? "Tick at least one person with a verified or risky email" : undefined}>
+            <button className="btn btn-primary btn-sm" disabled={!unsent.length} onClick={sendNow}
+              title={!unsent.length && !sentCount ? "Tick at least one person with a verified or risky email" : undefined}>
               <Send size={14} aria-hidden="true" />
-              {c.status === "approved" ? "Approved" : picked.length ? `Approve ${picked.length}` : "Approve"}
+              {unsent.length ? `Send ${unsent.length}` : sentCount ? "Sent" : "Send"}
             </button>
           )}
-          {done && c.status !== "approved" && (
+          {done && !sentCount && (
             <button className="btn btn-secondary btn-sm" onClick={lookAgain} title="Run all 8 steps again, for example if the website was down">
               <RefreshCw size={14} aria-hidden="true" /> Look again
             </button>
@@ -271,10 +286,13 @@ export function CompanyReview({
           </div>
         </div>
       )}
-      {c.status === "approved" && (
+      {sentCount > 0 && (
         <div className="alert alert-success" role="status">
           <CircleCheck size={18} />
-          <div><strong>Approved.</strong> Nothing was emailed: sending from ReachAgent is connected in a later step.</div>
+          <div>
+            <strong>Emailed {sentCount} {sentCount === 1 ? "person" : "people"}.</strong> Sent from {mailbox?.email ?? "your mailbox"}: the copies are in its
+            Sent folder and replies arrive in its inbox.
+          </div>
         </div>
       )}
 
@@ -294,11 +312,11 @@ export function CompanyReview({
               <ul className="lf-people-list">
                 {c.contacts.map((p) => {
                   const es = EMAIL_STATUS[p.emailStatus];
-                  const pickable = done && c.status !== "approved" && canPick(p);
+                  const pickable = done && !p.sentAt && canPick(p);
                   return (
                     <li key={p.id} className={`lf-person${p.selected ? " is-picked" : ""}${p.emailStatus === "invalid" ? " is-bad" : ""}${pickable ? "" : " is-locked"}`}>
                       <label className="lf-person-pick" title={!canPick(p) ? (p.email ? "This email can't be used" : "No email to send to") : undefined}>
-                        <input type="checkbox" aria-label={`Add ${p.name} to the approved list`} checked={p.selected} disabled={!pickable}
+                        <input type="checkbox" aria-label={`Email ${p.name}`} checked={p.selected} disabled={!pickable}
                           onChange={(e) => setContact(p.id, { selected: e.target.checked })} />
                         <span className="lf-tick" aria-hidden="true" />
                       </label>
@@ -313,7 +331,9 @@ export function CompanyReview({
                         <span className="lf-person-meta">
                           <span className={`pill no-dot tone-${es.tone}`} title={es.hint}>{working && p.emailStatus === "unknown" ? "Checking…" : es.label}</span>
                           {p.emailSource && <span className="muted">via {p.emailSource}</span>}
+                          {p.sentAt && <span className="pill no-dot tone-success">Sent</span>}
                         </span>
+                        {!p.sentAt && p.sendError && <span className="lf-sent-error" role="alert">Not sent: {p.sendError}</span>}
                       </div>
                     </li>
                   );
@@ -321,7 +341,7 @@ export function CompanyReview({
               </ul>
             )}
             {done && risky > 0 && (
-              <p className="lf-note"><Info size={14} aria-hidden="true" /> {risky} picked email{risky === 1 ? " is" : "s are"} risky: they go out last, a few at a time, so a bounce can&apos;t hurt your mailbox.</p>
+              <p className="lf-note"><Info size={14} aria-hidden="true" /> {risky} picked email{risky === 1 ? " is" : "s are"} risky: the address may not exist and the email could bounce.</p>
             )}
           </div>
 
@@ -353,7 +373,7 @@ export function CompanyReview({
                 </div>
                 <label className="field">
                   <span className="field-label">Personal line for {preview.name.split(" ")[0]}</span>
-                  <textarea className="input textarea lf-line" rows={2} value={preview.personalLine} disabled={c.status === "approved"}
+                  <textarea className="input textarea lf-line" rows={2} value={preview.personalLine} disabled={!!preview.sentAt}
                     placeholder="Leave empty to start the email without a personal line"
                     onChange={(e) => setContact(preview.id, { personalLine: e.target.value })} />
                   <span className="field-hint">The opening line of your message, written from what was found about this company. Change it if you like.</span>

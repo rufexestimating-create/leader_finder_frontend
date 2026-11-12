@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { Gauge, Mail, MessageSquareText, Minus, Plus, RotateCcw, SlidersHorizontal, Trash2, UserSearch } from "lucide-react";
+import { Gauge, Inbox, Mail, MessageSquareText, Minus, Plus, RotateCcw, SlidersHorizontal, Trash2, UserSearch } from "lucide-react";
 import {
   COMPANY_TYPES,
   DEFAULT_ROLES,
@@ -13,8 +13,10 @@ import {
   fillTemplate,
 } from "@/lib/leadFinder";
 import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
+import type { Mailbox } from "@/lib/leadFinderApi";
 import { ChipInput } from "./Chips";
 import { Select } from "./Dropdown";
+import { MailboxSettings } from "./MailboxSettings";
 import { ToolKeys } from "./ToolKeys";
 
 /** The company each template is tried on, so you can see how a line reads */
@@ -29,7 +31,7 @@ const SPEEDS: [number, string][] = [[1, "Slow"], [2, "Balanced"], [3, "Fast"], [
 const clampDaily = (n: number) => Math.min(500, Math.max(1, Math.round(n)));
 const same = (a: string[] = [], b: string[] = []) => a.length === b.length && a.every((x, i) => x === b[i]);
 
-export type SettingsSection = "people" | "message" | "lines" | "limits" | "advanced";
+export type SettingsSection = "people" | "message" | "mailbox" | "lines" | "limits" | "advanced";
 type Section = SettingsSection;
 
 /** Everything a non-technical user changes day to day, one topic at a time */
@@ -40,6 +42,8 @@ export function FinderSettingsPanel({
   notify,
   confirm,
   onKeysChanged,
+  mailbox,
+  onMailbox,
   initialSection = "people",
   onSection,
 }: {
@@ -49,6 +53,8 @@ export function FinderSettingsPanel({
   notify: (msg: string, isError?: boolean) => void;
   confirm: (r: ConfirmRequest) => void;
   onKeysChanged: () => void;
+  mailbox: Mailbox | null;
+  onMailbox: (mb: Mailbox) => void;
   initialSection?: SettingsSection;
   onSection?: (s: SettingsSection) => void;
 }) {
@@ -82,6 +88,7 @@ export function FinderSettingsPanel({
   const sections: { id: Section; icon: React.ReactNode; title: string; sub: string }[] = [
     { id: "people", icon: <UserSearch size={18} />, title: "Who to look for", sub: `${draft.roles.default?.length ?? 0} job titles` },
     { id: "message", icon: <Mail size={18} />, title: "Your email", sub: draft.subject || "No subject yet" },
+    { id: "mailbox", icon: <Inbox size={18} />, title: "Your mailbox", sub: mailbox?.connected ? mailbox.email ?? "Connected" : "Not connected" },
     { id: "lines", icon: <MessageSquareText size={18} />, title: "Personal lines", sub: `${activeLines} in use` },
     { id: "limits", icon: <Gauge size={18} />, title: "Daily limits", sub: `${draft.dailyLimit} a day, ${draft.atOnce} at once` },
     { id: "advanced", icon: <SlidersHorizontal size={18} />, title: "Connect your tools", sub: toolStatus.hunter.connected ? `${connectedTools} of ${toolList.length} connected` : "Hunter key needed" },
@@ -201,9 +208,19 @@ export function FinderSettingsPanel({
                 <span className="lf-set-preview-label">Preview</span>
                 <strong>{fill(draft.subject) || "No subject"}</strong>
                 <p>{fill(draft.message)}</p>
-                <span className="field-hint">An unsubscribe link and your address are added at the bottom.</span>
+                <span className="field-hint">Sent as plain text from your mailbox, exactly as shown here.</span>
               </div>
             </div>
+          </>
+        )}
+
+        {section === "mailbox" && (
+          <>
+            <header className="lf-set-head">
+              <h3>Your mailbox</h3>
+              <p>The address your emails are sent from. A copy of each goes to its Sent folder, and replies arrive in its inbox.</p>
+            </header>
+            <MailboxSettings mailbox={mailbox} onChange={onMailbox} notify={notify} confirm={confirm} />
           </>
         )}
 

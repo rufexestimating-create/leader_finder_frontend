@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { CircleCheck, KeyRound, WifiOff } from "lucide-react";
 import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import { type Company, type CompanyInput, type CompanyStatus, type Contact, DEFAULT_SETTINGS, type FinderSettings, type SearchFilters, type ToolId } from "@/lib/leadFinder";
-import { type FoundCompany, type ToolStatus, call, foundToInput, send, toCompany, toCompanyBody, toSettings, toSettingsBody } from "@/lib/leadFinderApi";
+import { type FoundCompany, type Mailbox, type ToolStatus, call, foundToInput, send, toCompany, toCompanyBody, toSettings, toSettingsBody } from "@/lib/leadFinderApi";
 import { AddCompany } from "./AddCompany";
 import { CompanyReview } from "./CompanyReview";
 import { Dashboard } from "./Dashboard";
@@ -47,6 +47,7 @@ export function LeadFinderPage({
   const [settings, setSettings] = useState<FinderSettings>(DEFAULT_SETTINGS);
   const [toolStatus, setToolStatus] = useState<Record<ToolId, ToolStatus>>(NOT_CONNECTED);
   const [toolsKnown, setToolsKnown] = useState(false);
+  const [mailbox, setMailbox] = useState<Mailbox | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("people");
   const [loaded, setLoaded] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -97,6 +98,7 @@ export function LeadFinderPage({
     const first = setTimeout(() => {
       load();
       loadSettings();
+      call<Mailbox>("/mailbox").then((res) => setMailbox(res.data ?? { connected: false }));
     }, 0);
     return () => clearTimeout(first);
   }, [load, loadSettings]);
@@ -200,13 +202,15 @@ export function LeadFinderPage({
     }
   };
 
-  const approve = async (c: Company) => {
-    const res = await call<Record<string, unknown>>(`/companies/${c.id}/approve`, send("POST"));
-    if (res.error || !res.data) return notify(res.error ?? "Couldn't approve this company.", true);
+  const sendEmails = async (c: Company) => {
+    const res = await call<Record<string, unknown>>(`/companies/${c.id}/send`, send("POST"));
+    if (res.error || !res.data) return notify(res.error ?? "The emails couldn't be sent.", true);
     const done = toCompany(res.data);
     setCompanies((all) => all.map((x) => (x.id === done.id ? done : x)));
-    const n = done.contacts.filter((p) => p.selected).length;
-    notify(`${n} ${n === 1 ? "person" : "people"} from ${done.name} approved. Sending isn't connected yet, so nothing was emailed.`);
+    const failed = done.contacts.filter((p) => p.selected && !p.sentAt && p.sendError).length;
+    const sent = done.contacts.filter((p) => p.sentAt).length;
+    if (failed) notify(`${failed} email${failed === 1 ? "" : "s"} to ${done.name} didn't go out. See the reason next to each person.`, true);
+    else notify(`Sent to ${sent} ${sent === 1 ? "person" : "people"} at ${done.name} from ${mailbox?.email}. Replies arrive in its inbox.`);
   };
 
   const retry = async (c: Company, website: string) => {
@@ -276,7 +280,9 @@ export function LeadFinderPage({
           now={now}
           onBack={back}
           onChange={changeContacts}
-          onApprove={approve}
+          mailbox={mailbox}
+          onSend={sendEmails}
+          onOpenMailbox={() => { setSettingsSection("mailbox"); show("settings"); }}
           onRetry={(website) => retry(open, website)}
           onRemove={() => remove(open)}
           confirm={confirm}
@@ -299,6 +305,8 @@ export function LeadFinderPage({
               notify={notify}
               confirm={confirm}
               onKeysChanged={() => loadSettings(true)}
+              mailbox={mailbox}
+              onMailbox={setMailbox}
               initialSection={settingsSection}
               onSection={setSettingsSection}
             />

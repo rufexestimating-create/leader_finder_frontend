@@ -43,6 +43,10 @@ export interface Contact {
   linkedin: string | null;
   personalLine: string;
   selected: boolean;
+  /** When the email went out from the user's mailbox; null = not sent */
+  sentAt: string | null;
+  /** Why the last send failed, if it did */
+  sendError: string | null;
 }
 
 export interface SourceLink {
@@ -284,7 +288,7 @@ export const COMPANY_STATUS: Record<CompanyStatus, { label: string; tone: string
   queued: { label: "Waiting", tone: "neutral" },
   enriching: { label: "Finding details", tone: "info" },
   ready: { label: "Ready to review", tone: "success" },
-  approved: { label: "Approved", tone: "violet" },
+  approved: { label: "Emailed", tone: "violet" },
   failed: { label: "Couldn't finish", tone: "danger" },
 };
 
@@ -448,6 +452,8 @@ function person(id: string, name: string, title: string, email: string | null, e
     linkedin: `https://linkedin.example/in/${slug(name)}`,
     personalLine: line,
     selected: selected && emailStatus === "valid",
+    sentAt: null,
+    sendError: null,
   };
 }
 
