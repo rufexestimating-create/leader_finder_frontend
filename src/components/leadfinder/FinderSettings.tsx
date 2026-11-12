@@ -75,7 +75,8 @@ export function FinderSettingsPanel({
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
   const noRoles = !draft.roles.default?.length;
   const roleList = draft.roles[roleType] ?? [];
-  const connectedTools = (["hunter", "verifier", "serper", "ai"] as ToolId[]).filter((t) => toolStatus[t].connected).length;
+  const toolList: ToolId[] = ["hunter", "verifier", "serper", "ai", "apollo", "pdl"];
+  const connectedTools = toolList.filter((t) => toolStatus[t].connected).length;
   const activeLines = draft.templates.filter((t) => t.enabled && t.text.trim()).length;
 
   const sections: { id: Section; icon: React.ReactNode; title: string; sub: string }[] = [
@@ -83,7 +84,7 @@ export function FinderSettingsPanel({
     { id: "message", icon: <Mail size={18} />, title: "Your email", sub: draft.subject || "No subject yet" },
     { id: "lines", icon: <MessageSquareText size={18} />, title: "Personal lines", sub: `${activeLines} in use` },
     { id: "limits", icon: <Gauge size={18} />, title: "Daily limits", sub: `${draft.dailyLimit} a day, ${draft.atOnce} at once` },
-    { id: "advanced", icon: <SlidersHorizontal size={18} />, title: "Connect your tools", sub: toolStatus.hunter.connected ? `${connectedTools} of 4 connected` : "Hunter key needed" },
+    { id: "advanced", icon: <SlidersHorizontal size={18} />, title: "Connect your tools", sub: toolStatus.hunter.connected ? `${connectedTools} of ${toolList.length} connected` : "Hunter key needed" },
   ];
 
   const save = () => {

@@ -44,23 +44,9 @@ const CARDS: { provider: Provider; name: string; required?: boolean; does: strin
   {
     provider: "apollo",
     name: "Apollo.io",
-    does: "Fallback contact finder: when Hunter can't find a person's email, Apollo tries its 275M+ contact database.",
+    does: "Fallback contact finder: when Hunter can't find a person's email, Apollo tries its 275M+ contact database. Needs a paid Apollo plan.",
     link: "https://app.apollo.io/#/settings/integrations/api",
     switches: [{ tool: "apollo", label: "In use" }],
-  },
-  {
-    provider: "gplaces",
-    name: "Google Places API",
-    does: "Finds local businesses by city and type with accurate phone, address, rating and website directly from Google Maps.",
-    link: "https://console.cloud.google.com/apis/library/places-backend.googleapis.com",
-    switches: [{ tool: "gplaces", label: "In use" }],
-  },
-  {
-    provider: "openai",
-    name: "OpenAI",
-    does: "Fallback AI writer: if Gemini is unavailable, OpenAI (GPT-4o mini) writes the personal opening line instead.",
-    link: "https://platform.openai.com/api-keys",
-    switches: [{ tool: "openai", label: "In use" }],
   },
   {
     provider: "pdl",
