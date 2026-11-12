@@ -6,7 +6,7 @@ import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import type { ToolId } from "@/lib/leadFinder";
 import { call, send } from "@/lib/leadFinderApi";
 
-type Provider = "hunter" | "reoon" | "serper" | "ai";
+type Provider = "hunter" | "reoon" | "serper" | "ai" | "apollo" | "gplaces" | "openai" | "pdl";
 type KeyState = { connected: boolean; last4: string | null };
 type Note = { ok: boolean; text: string };
 
@@ -40,6 +40,34 @@ const CARDS: { provider: Provider; name: string; required?: boolean; does: strin
     does: "Writes the personal opening line of each email from what was found. Without it, your own lines are used.",
     link: "https://aistudio.google.com/apikey",
     switches: [{ tool: "ai", label: "In use" }],
+  },
+  {
+    provider: "apollo",
+    name: "Apollo.io",
+    does: "Fallback contact finder: when Hunter can't find a person's email, Apollo tries its 275M+ contact database.",
+    link: "https://app.apollo.io/#/settings/integrations/api",
+    switches: [{ tool: "apollo", label: "In use" }],
+  },
+  {
+    provider: "gplaces",
+    name: "Google Places API",
+    does: "Finds local businesses by city and type with accurate phone, address, rating and website directly from Google Maps.",
+    link: "https://console.cloud.google.com/apis/library/places-backend.googleapis.com",
+    switches: [{ tool: "gplaces", label: "In use" }],
+  },
+  {
+    provider: "openai",
+    name: "OpenAI",
+    does: "Fallback AI writer: if Gemini is unavailable, OpenAI (GPT-4o mini) writes the personal opening line instead.",
+    link: "https://platform.openai.com/api-keys",
+    switches: [{ tool: "openai", label: "In use" }],
+  },
+  {
+    provider: "pdl",
+    name: "People Data Labs",
+    does: "Adds professional background, job history and LinkedIn data to each contact, improving personalisation.",
+    link: "https://dashboard.peopledatalabs.com/api-keys",
+    switches: [{ tool: "pdl", label: "In use" }],
   },
 ];
 

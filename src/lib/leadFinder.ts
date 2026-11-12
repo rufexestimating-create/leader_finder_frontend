@@ -304,7 +304,7 @@ export const SOURCE_LABEL: Record<CompanySource, string> = { manual: "Added by h
 
 /* ---------- Settings ---------- */
 
-export type ToolId = "hunter" | "serper" | "verifier" | "places" | "ai";
+export type ToolId = "hunter" | "serper" | "verifier" | "places" | "ai" | "apollo" | "gplaces" | "openai" | "pdl";
 /* The services behind each tool, and where users add their own keys, are in components/leadfinder/ToolKeys.tsx */
 
 export interface LineTemplate {
@@ -350,7 +350,7 @@ export const DEFAULT_SETTINGS: FinderSettings = {
     "with a proven track record of helping projects move smoothly from submission to approval.\n\nGary | Design Head\nCADTRI | (737) 237-2736",
   dailyLimit: 50,
   atOnce: 2,
-  tools: { hunter: true, serper: true, verifier: true, places: true, ai: true },
+  tools: { hunter: true, serper: true, verifier: true, places: true, ai: true, apollo: true, gplaces: true, openai: true, pdl: true },
 };
 
 /** Who to look for at a company of this type, from Settings */
