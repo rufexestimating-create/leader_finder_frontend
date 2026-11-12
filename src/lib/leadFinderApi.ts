@@ -64,6 +64,8 @@ export interface Mailbox {
   smtp_port?: number;
   imap_host?: string;
   imap_port?: number;
+  /** On: every email goes to this mailbox itself instead of the real person */
+  test_mode?: boolean;
 }
 
 /** Always 8 steps, even for a company that was just added */

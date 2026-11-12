@@ -205,6 +205,10 @@ export function LeadFinderPage({
   const sendEmails = async (c: Company) => {
     const res = await call<Record<string, unknown>>(`/companies/${c.id}/send`, send("POST"));
     if (res.error || !res.data) return notify(res.error ?? "The emails couldn't be sent.", true);
+    if (typeof res.data.test_sent === "number") {
+      const n = res.data.test_sent;
+      return notify(`Test mode: ${n} email${n === 1 ? "" : "s"} sent to ${mailbox?.email}. Nobody at ${c.name} got anything.`);
+    }
     const done = toCompany(res.data);
     setCompanies((all) => all.map((x) => (x.id === done.id ? done : x)));
     const failed = done.contacts.filter((p) => p.selected && !p.sentAt && p.sendError).length;

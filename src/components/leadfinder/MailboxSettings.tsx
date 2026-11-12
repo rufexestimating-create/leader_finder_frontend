@@ -63,6 +63,24 @@ export function MailboxSettings({
     setNote(res.data ? { ok: true, text: res.data.message } : { ok: false, text: res.error ?? "The test email couldn't be sent." });
   };
 
+  const setTestMode = (on: boolean) => {
+    const apply = async () => {
+      const res = await call<Mailbox>("/mailbox", send("PATCH", { test_mode: on }));
+      if (res.error || !res.data) return notify(res.error ?? "Test mode couldn't be changed.", true);
+      onChange(res.data);
+      notify(on ? "Test mode on: every email now comes to you." : "Test mode off: emails now go to the real people.");
+    };
+    if (on) return apply();
+    confirm({
+      title: "Turn off test mode?",
+      message: "From now on, Send emails the real people at each company. Only do this once your tests look right.",
+      confirmLabel: "Send to real people",
+      cancelLabel: "Keep testing",
+      danger: true,
+      onConfirm: apply,
+    });
+  };
+
   const remove = () =>
     confirm({
       title: "Disconnect your mailbox?",
@@ -96,7 +114,25 @@ export function MailboxSettings({
               <span className={`lf-tool-dot${connected ? " ok" : ""}`} aria-hidden="true" />
               <strong>{connected ? mailbox.email : "Your mailbox"}</strong>
               <span className="pill no-dot tone-warning">Needed to send</span>
+              {connected && (
+                <div className="lf-key-switches">
+                  <label className="lf-key-switch">
+                    <span>Test mode</span>
+                    <span className="switch">
+                      <input type="checkbox" checked={mailbox.test_mode !== false} onChange={(e) => setTestMode(e.target.checked)} aria-label="Test mode" />
+                      <span className="switch-track" aria-hidden="true" />
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
+            {connected && (
+              <p className={`lf-key-note ${mailbox.test_mode !== false ? "is-ok" : "is-bad"}`}>
+                {mailbox.test_mode !== false
+                  ? `Test mode is on: every email goes to ${mailbox.email}, with the real person's name and address written at the top. Nobody else gets anything.`
+                  : "Test mode is off: Send emails the real people."}
+              </p>
+            )}
             <p className="lf-key-does">
               {connected
                 ? `Sending as ${mailbox.from_name ? `${mailbox.from_name} <${mailbox.email}>` : mailbox.email} through ${mailbox.smtp_host}.`

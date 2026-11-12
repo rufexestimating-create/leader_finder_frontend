@@ -104,7 +104,8 @@ export function CompanyReview({
   const working = c.status === "queued" || c.status === "enriching";
   const done = c.status === "ready" || c.status === "approved";
   const picked = c.contacts.filter((p) => p.selected);
-  const unsent = picked.filter((p) => !p.sentAt);
+  const testMode = !!mailbox?.connected && mailbox.test_mode !== false;
+  const unsent = testMode ? picked : picked.filter((p) => !p.sentAt);
   const sentCount = c.contacts.filter((p) => p.sentAt).length;
   const risky = unsent.filter((p) => p.emailStatus === "catch_all").length;
   const withEmail = c.contacts.filter((p) => p.email && p.emailStatus !== "invalid");
@@ -114,7 +115,22 @@ export function CompanyReview({
   const setContact = (id: string, patch: Partial<Contact>) => onChange({ ...c, contacts: c.contacts.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
 
   const sendNow = () =>
-    mailbox?.connected
+    testMode
+      ? confirm({
+          title: `Send ${unsent.length} test email${unsent.length === 1 ? "" : "s"} to yourself?`,
+          message: (
+            <>
+              <strong>Everything goes to {mailbox?.email}.</strong>
+              <span className="lf-dialog-note">
+                Test mode is on, so {unsent.map((p) => p.name).join(", ")} get nothing. Each test email shows at the top who it would go to.
+              </span>
+            </>
+          ),
+          confirmLabel: `Send ${unsent.length} to me`,
+          cancelLabel: "Not yet",
+          onConfirm: () => onSend(c),
+        })
+      : mailbox?.connected
       ? confirm({
           title: `Email ${unsent.length} ${unsent.length === 1 ? "person" : "people"} now?`,
           message: (
@@ -232,7 +248,7 @@ export function CompanyReview({
             <button className="btn btn-primary btn-sm" disabled={!unsent.length} onClick={sendNow}
               title={!unsent.length && !sentCount ? "Tick at least one person with a verified or risky email" : undefined}>
               <Send size={14} aria-hidden="true" />
-              {unsent.length ? `Send ${unsent.length}` : sentCount ? "Sent" : "Send"}
+              {testMode ? `Test ${unsent.length || ""}`.trim() : unsent.length ? `Send ${unsent.length}` : sentCount ? "Sent" : "Send"}
             </button>
           )}
           {done && !sentCount && (
