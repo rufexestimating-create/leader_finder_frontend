@@ -429,7 +429,7 @@ export function CompanyReview({
 
           <details className="card lf-timeline" open={!done}>
             <summary>
-              <span className="card-title"><span className="lf-title-icon"><Sparkles size={16} aria-hidden="true" /></span> How we found this</span>
+              <span className="card-title"><span className="lf-title-icon"><Sparkles size={16} aria-hidden="true" /></span> How <strong>ReachAgent</strong> found this</span>
               <span className="lf-timeline-progress">
                 <span className="lf-bar" aria-hidden="true"><i style={{ transform: `scaleX(${stepsDone / STEPS.length})` }} /></span>
                 {stepsDone}/{STEPS.length}
