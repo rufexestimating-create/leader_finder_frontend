@@ -10,7 +10,7 @@ type Provider = "hunter" | "reoon" | "serper" | "ai";
 type KeyState = { connected: boolean; last4: string | null };
 type Note = { ok: boolean; text: string };
 
-/** The four services Lead Finder uses. Each user connects their own account, so they pay only for what they use. */
+/** The four services ReachAgent uses. Each user connects their own account, so they pay only for what they use. */
 const CARDS: { provider: Provider; name: string; required?: boolean; does: string; link: string; switches: { tool: ToolId; label: string }[] }[] = [
   {
     provider: "hunter",

@@ -113,7 +113,7 @@ export function CompanyReview({
         <>
           <strong>{picked.map((p) => `${p.name} (${p.email})`).join(", ")}</strong>
           <span className="lf-dialog-note">
-            Nothing is emailed yet: sending from Lead Finder is connected in a later step. Approving marks them as chosen, with their own personal line.
+            Nothing is emailed yet: sending from ReachAgent is connected in a later step. Approving marks them as chosen, with their own personal line.
             Risky emails will go last, a few at a time.
           </span>
         </>
@@ -135,7 +135,7 @@ export function CompanyReview({
   const remove = () =>
     confirm({
       title: `Remove ${c.name}?`,
-      message: "It disappears from Lead Finder with the people and emails we found. You can add it again later.",
+      message: "It disappears from ReachAgent with the people and emails we found. You can add it again later.",
       confirmLabel: "Remove",
       cancelLabel: "Keep it",
       danger: true,
@@ -274,7 +274,7 @@ export function CompanyReview({
       {c.status === "approved" && (
         <div className="alert alert-success" role="status">
           <CircleCheck size={18} />
-          <div><strong>Approved.</strong> Nothing was emailed: sending from Lead Finder is connected in a later step.</div>
+          <div><strong>Approved.</strong> Nothing was emailed: sending from ReachAgent is connected in a later step.</div>
         </div>
       )}
 

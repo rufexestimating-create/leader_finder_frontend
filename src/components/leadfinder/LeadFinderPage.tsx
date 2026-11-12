@@ -252,7 +252,7 @@ export function LeadFinderPage({
         <div className="alert alert-warning" role="note">
           <KeyRound size={18} />
           <div>
-            <strong>Connect your Hunter key to start finding leads.</strong> Lead Finder works through your own tool accounts, so you only use your own credits.{" "}
+            <strong>Connect your Hunter key to start finding leads.</strong> ReachAgent works through your own tool accounts, so you only use your own credits.{" "}
             <button type="button" className="link-btn" onClick={openTools}>Add your keys</button>
           </div>
         </div>

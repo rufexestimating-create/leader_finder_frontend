@@ -80,7 +80,7 @@ export function AuthShell({
           <span className="auth-eyebrow">B2B prospecting</span>
           {/* A styled paragraph, not a heading: the page's own <h1> ("Welcome back") must come first for screen readers */}
           <p className="auth-hero-title">Find the people who <em>actually sign the contract.</em></p>
-          <p>Name a company or a market. Lead Finder reads the web, finds the decision makers and verifies their email.</p>
+          <p>Name a company or a market. ReachAgent reads the web, finds the decision makers and verifies their email.</p>
         </div>
 
         <ol className="auth-features">

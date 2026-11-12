@@ -301,7 +301,7 @@ export function FinderSettingsPanel({
           <>
             <header className="lf-set-head">
               <h3>Connect your tools</h3>
-              <p>Lead Finder finds and checks details through these services. Turn one off and its step is skipped.</p>
+              <p>ReachAgent finds and checks details through these services. Turn one off and its step is skipped.</p>
             </header>
             <ToolKeys
               tools={draft.tools}

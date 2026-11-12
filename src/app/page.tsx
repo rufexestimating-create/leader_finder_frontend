@@ -79,7 +79,7 @@ export default function Home() {
         <div className="topbar-surface" aria-hidden="true" />
         <div className="topbar-inner">
           <button type="button" className="topbar-brand" onClick={() => go("dashboard")} aria-label="Go to the dashboard"><Brand /></button>
-          <nav className="lf-nav lf-topnav" aria-label="Lead Finder sections">
+          <nav className="lf-nav lf-topnav" aria-label="ReachAgent sections">
             {NAV.map((t) => (
               <button key={t.id} type="button" aria-current={nav.view === t.id ? "page" : undefined} className={nav.view === t.id ? "active" : ""} onClick={() => go(t.id)}>
                 {t.icon}
