@@ -17,7 +17,8 @@ const IDLE_MS = 30_000;
 const CHUNK = 500; // the server takes at most 500 companies at a time
 const NOT_CONNECTED: Record<ToolId, ToolStatus> = {
   hunter: { connected: false, on: true }, serper: { connected: false, on: true }, verifier: { connected: false, on: true }, places: { connected: false, on: true },
-  ai: { connected: false, on: true },
+  ai: { connected: false, on: true }, apollo: { connected: false, on: true }, gplaces: { connected: false, on: true },
+  openai: { connected: false, on: true }, pdl: { connected: false, on: true },
 };
 
 /** What you changed on a person but the server hasn't confirmed yet. Kept on top of what the server sends, so typing isn't undone. */
