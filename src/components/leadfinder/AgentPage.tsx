@@ -200,7 +200,7 @@ export function AgentPage({
     const tiles: [string, number | undefined][] = bulk
       ? [["On your list", c.total], ["Checked", c.checked], ["Ready to send", c.emails], ["Removed", c.removed], ["Sent", c.sent]]
       : smart
-      ? [["On Google Maps", c.found], ["New companies", c.new], ["Enriched", c.read], ["People", c.people], ["Verified emails", c.emails], ["Sent", c.sent]]
+      ? [["On Google Maps", c.found], ["New companies", c.new], ["Enriched", c.read], ["People", c.people], ["Emails picked", c.emails], ["Sent", c.sent]]
       : [["On Google Maps", c.found], ["New companies", c.new], ["Websites read", c.read], ["Emails found", c.emails], ["Sent", c.sent]];
     const log = [...(c.log ?? [])].reverse().slice(0, 40);
 
@@ -284,10 +284,10 @@ export function AgentPage({
                   const waiting = co.status === "enriching" || co.status === "queued";
                   const now = co.status === "enriching" && co.domain === c.current;
                   const state = now ? (smart ? "Enriching" : "Reading") : waiting ? "Queued" : co.status === "failed" ? "Failed"
-                    : !p ? (smart ? "No verified email" : "No email") : picked.some((x) => x.sentAt) || p.sentAt ? "Sent"
-                    : p.sendError ? "Not sent" : smart ? `${picked.length} verified` : bulk ? "Ready" : "Email found";
+                    : !p ? (smart ? "No usable email" : "No email") : picked.some((x) => x.sentAt) || p.sentAt ? "Sent"
+                    : p.sendError ? "Not sent" : smart ? (p.emailStatus === "valid" ? `${picked.length} verified` : "Risky, picked") : bulk ? "Ready" : "Email found";
                   const tone = state === "Sent" ? "ok" : state === "Not sent" || state === "Failed" ? "bad" : now ? "live"
-                    : state === "Email found" || state === "Ready" || state.endsWith("verified") ? "info" : "idle";
+                    : state === "Email found" || state === "Ready" || state === "Risky, picked" || state.endsWith("verified") ? "info" : "idle";
                   return (
                     <li key={co.id}>
                       <button type="button" onClick={() => onOpenCompany(co.id)} className={now ? "is-now" : undefined}>
