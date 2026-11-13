@@ -327,6 +327,10 @@ export interface FinderSettings {
   dailyLimit: number;
   atOnce: number;
   tools: Record<ToolId, boolean>;
+  /** The agent's message when nothing is looked up; {{greeting}} is "Hi Alfonso," or "Hi CTC Contractors team," */
+  agentSubject: string;
+  agentMessage: string;
+  emailsPerDay: number;
 }
 
 export const TEMPLATE_VARIABLES = ["company", "city", "industry", "founded_year", "rating", "reviews"] as const;
@@ -355,6 +359,13 @@ export const DEFAULT_SETTINGS: FinderSettings = {
   dailyLimit: 50,
   atOnce: 2,
   tools: { hunter: true, serper: true, verifier: true, places: true, ai: true, apollo: true, gplaces: true, openai: true, pdl: true },
+  agentSubject: "Drafting support for {{company}}",
+  agentMessage:
+    "{{greeting}}\n\nMany of your clients need expert permit plans and drafting services, while our clients often need trusted contractors. " +
+    "We specialize in permit-ready plans, drafting, and renderings, with years of experience and a proven track record of successful projects. " +
+    "We can provide work samples and client references upon request. In return, we will refer construction opportunities to your company and " +
+    "offer referral fees for every successful referral and creating new business opportunities for both of us.\n\nGary | Design Head\nCADTRI | (737) 237-2736",
+  emailsPerDay: 30,
 };
 
 /** Who to look for at a company of this type, from Settings */

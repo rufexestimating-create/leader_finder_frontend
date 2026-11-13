@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowUpRight, BadgeCheck, Building2, ChevronRight, CircleCheck, LoaderCircle, Plus } from "lucide-react";
+import { ArrowUpRight, BadgeCheck, Bot, Building2, ChevronRight, CircleCheck, LoaderCircle, Plus } from "lucide-react";
 import { COMPANY_STATUS, type Company, type CompanyStatus, describeType } from "@/lib/leadFinder";
 import { StepProgress, timeAgo } from "./Results";
 
@@ -25,6 +25,7 @@ export function Dashboard({
   now,
   onFilter,
   onAdd,
+  onAgent,
   onOpen,
 }: {
   companies: Company[];
@@ -32,6 +33,7 @@ export function Dashboard({
   now: number;
   onFilter: (s: "all" | CompanyStatus) => void;
   onAdd: () => void;
+  onAgent: () => void;
   onOpen: (id: string) => void;
 }) {
   const running = counts.working + counts.waiting;
@@ -97,7 +99,10 @@ export function Dashboard({
                 : "Add a company or search a market to find new leads."}
           </p>
         </div>
-        <button className="btn btn-primary lf-dash-cta" onClick={onAdd}><Plus size={16} aria-hidden="true" /> Add companies</button>
+        <div className="lf-dash-ctas">
+          <button className="btn btn-primary lf-dash-cta" onClick={onAgent}><Bot size={16} aria-hidden="true" /> Run agent</button>
+          <button className="btn btn-secondary lf-dash-cta" onClick={onAdd}><Plus size={16} aria-hidden="true" /> Add companies</button>
+        </div>
       </header>
 
       <ul className="lf-tiles">

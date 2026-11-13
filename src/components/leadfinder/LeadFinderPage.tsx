@@ -6,12 +6,13 @@ import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import { type Company, type CompanyInput, type CompanyStatus, type Contact, DEFAULT_SETTINGS, type FinderSettings, type SearchFilters, type ToolId } from "@/lib/leadFinder";
 import { type FoundCompany, type Mailbox, type ToolStatus, call, foundToInput, send, toCompany, toCompanyBody, toSettings, toSettingsBody } from "@/lib/leadFinderApi";
 import { AddCompany } from "./AddCompany";
+import { AgentPage } from "./AgentPage";
 import { CompanyReview } from "./CompanyReview";
 import { Dashboard } from "./Dashboard";
 import { FinderSettingsPanel, type SettingsSection } from "./FinderSettings";
 import { Results } from "./Results";
 
-export type View = "dashboard" | "results" | "add" | "settings";
+export type View = "dashboard" | "agent" | "results" | "add" | "settings";
 const BUSY_MS = 3000; // while companies are being looked into, the page follows their steps
 const IDLE_MS = 30_000;
 const CHUNK = 500; // the server takes at most 500 companies at a time
@@ -295,7 +296,12 @@ export function LeadFinderPage({
         <>
           <div key={`${view}-${navTick}`} className="lf-view">
           {view === "dashboard" && (
-            <Dashboard companies={sorted} counts={counts} now={now} onFilter={filterBy} onAdd={() => show("add")} onOpen={setOpenId} />
+            <Dashboard companies={sorted} counts={counts} now={now} onFilter={filterBy} onAdd={() => show("add")} onAgent={() => show("agent")} onOpen={setOpenId} />
+          )}
+          {view === "agent" && (
+            <AgentPage mailbox={mailbox} notify={notify} confirm={confirm}
+              onOpenCompany={async (id) => { await load(); setOpenId(id); }}
+              onOpenMailbox={() => { setSettingsSection("mailbox"); show("settings"); }} />
           )}
           {view === "results" && <Results companies={sorted} now={now} status={status} onStatus={setStatus} onOpen={setOpenId} onAdd={() => show("add")} />}
           {view === "add" && (

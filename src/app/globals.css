@@ -1,5 +1,5 @@
-/*
- * Design system: Lead Finder — "Mist"
+﻿/*
+ * Design system: Lead Finder â€” "Mist"
  *  Light first. Airy mist-white surfaces, deep teal accent, a warm peach highlight,
  *  soft mint/sky/peach gradient blobs on feature panels, generous radii and soft shadows.
  *  Fonts: Space Grotesk (headings) + Inter (body), set by next/font in layout.tsx.
@@ -17,7 +17,7 @@
   --text-2: #475A63;    /* 7:1 */
   --text-3: #66777F;    /* 4.6:1 on white */
 
-  /* Deep teal CTA — 5.5:1 white-on-ink */
+  /* Deep teal CTA â€” 5.5:1 white-on-ink */
   --ink: #0F766E;
   --ink-hover: #0B5F58;
   --on-ink: #FFFFFF;
@@ -112,7 +112,7 @@
   --text-2: #6A8EB0;    /* 5.6:1 on --surface */
   --text-3: #3C5870;    /* 3.1:1 on raised surface (UI components) */
 
-  /* Electric teal CTA — 12.6:1 dark-on-ink */
+  /* Electric teal CTA â€” 12.6:1 dark-on-ink */
   --ink: #00C0E8;
   --ink-hover: #20D0F8;
   --on-ink: #060C14;
@@ -1177,7 +1177,7 @@ select.input {
 .donut-label small { font-size: 0.95rem; font-weight: 600; color: var(--text-2); margin-left: 1px; }
 .donut-label span { font-size: 0.75rem; color: var(--success); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
 
-/* "⋯" menu at the end of each campaign's buttons */
+/* "â‹¯" menu at the end of each campaign's buttons */
 .more-menu { position: relative; }
 .more-trigger {
   width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
@@ -2193,10 +2193,10 @@ select.input {
 
 .load-error { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; flex: 1; }
 
-/* Keeps the "⋯" menu on the right even when a card's actions wrap to two lines */
+/* Keeps the "â‹¯" menu on the right even when a card's actions wrap to two lines */
 .campaign-actions .more-menu { margin-left: auto; }
 
-/* Touch screens: every control at least 44×44px with 8px between neighbours (UI UX Pro Max: touch-target-size) */
+/* Touch screens: every control at least 44Ã—44px with 8px between neighbours (UI UX Pro Max: touch-target-size) */
 @media (pointer: coarse) {
   .btn, .btn-sm, .act, .filter, .pager-btn, .pager-size .input, .topnav-item, .user-trigger { min-height: 44px; }
   .icon-btn, .more-trigger, .theme-toggle { width: 44px; height: 44px; }
@@ -3009,7 +3009,7 @@ select.input {
 .lf-subgroup { display: flex; flex-direction: column; gap: 0.9rem; padding-top: 0.7rem; }
 .lf-subgroup + .lf-subgroup { border-top: 1px dashed var(--border); }
 .lf-subgroup h4 { font-size: 0.75rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
-.lf-subgroup--us h4::after { content: " · shown because the country is United States"; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.lf-subgroup--us h4::after { content: " Â· shown because the country is United States"; text-transform: none; letter-spacing: 0; font-weight: 500; }
 .lf-us-note { padding: 0.7rem 0.8rem; border-radius: var(--radius-sm); background: var(--surface-2); }
 .lf-segmented { align-self: flex-start; flex-wrap: wrap; }
 .lf-notes { min-height: 84px; }
@@ -3297,7 +3297,7 @@ select.input {
 .lf-limit-head { display: flex; flex-direction: column; gap: 0.2rem; }
 .lf-limit-head .field-label { font-size: 0.95rem; }
 
-/* − 50 + stepper */
+/* âˆ’ 50 + stepper */
 .lf-stepper {
   display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; align-items: center;
   height: 72px; border: 1.5px solid var(--border-strong); border-radius: 16px; background: var(--surface); overflow: hidden;
@@ -3382,6 +3382,40 @@ select.input {
 .lf-mailbox-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem 1rem; }
 .lf-mailbox-advanced summary { cursor: pointer; font-size: 0.84rem; font-weight: 600; color: var(--primary); margin-bottom: 0.6rem; }
 .lf-mailbox-form .btn { border-radius: 999px; }
+/* ReachAgent's automatic runs */
+.lf-agent { display: flex; flex-direction: column; gap: 1rem; }
+.lf-agent-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.lf-agent-title { display: flex; gap: 0.9rem; align-items: flex-start; min-width: 0; }
+.lf-agent-title h2 { margin: 0.35rem 0 0.2rem; font-size: 1.35rem; }
+.lf-agent-title p { margin: 0; display: flex; align-items: center; gap: 0.3rem; font-size: 0.86rem; }
+.lf-agent-icon { flex: none; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); }
+.lf-agent-tiles { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.lf-agent-steps { list-style: none; margin: 0.75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.85rem; }
+.lf-agent-steps li { display: flex; gap: 0.7rem; align-items: flex-start; }
+.lf-agent-steps li > div { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.lf-agent-steps li span { font-size: 0.84rem; color: var(--text-2); }
+.lf-agent-steps li.is-pending strong { color: var(--text-3); font-weight: 500; }
+.lf-agent-ok { color: var(--success); flex: none; }
+.lf-agent-live { color: var(--primary); flex: none; }
+.lf-agent-bad { color: var(--danger); flex: none; }
+.lf-agent-idle { color: var(--text-3); flex: none; }
+.lf-agent-list { list-style: none; margin: 0; padding: 0; }
+.lf-agent-list li + li { border-top: 1px solid var(--border); }
+.lf-agent-list button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.75rem 1.1rem; background: none; border: 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.lf-agent-list button:hover { background: var(--surface-2); }
+.lf-agent-co, .lf-agent-mail { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.lf-agent-co .muted, .lf-agent-mail > span:first-child { font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lf-agent-mail { align-items: flex-end; text-align: right; }
+.lf-agent-form { display: flex; flex-direction: column; gap: 1.1rem; }
+.lf-agent-form .lf-set-head h3 { display: flex; align-items: center; gap: 0.45rem; }
+.lf-agent-modes { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem; }
+.lf-agent-modes legend { margin-bottom: 0.5rem; }
+.lf-agent-mode { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 14px; }
+.lf-agent-mode > span { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.84rem; }
+.lf-agent-mode.is-on { border-color: var(--primary); background: var(--primary-soft); }
+.lf-agent-mode.is-off { opacity: 0.55; }
+.lf-dash-ctas { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+@media (max-width: 640px) { .lf-agent-list button { flex-direction: column; align-items: flex-start; } .lf-agent-mail { align-items: flex-start; text-align: left; } }
 .lf-sent-error { display: block; margin-top: 0.2rem; font-size: 0.78rem; color: var(--danger); }
 
 /* Floating save bar: slides up only when something changed */

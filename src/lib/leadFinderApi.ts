@@ -175,6 +175,7 @@ export function toSettings(r: Row): { settings: FinderSettings; status: Record<T
     settings: {
       roles: r.roles, skipSites: r.skip_sites, templates: r.templates, subject: r.subject ?? "", message: r.message ?? "",
       dailyLimit: r.daily_limit, atOnce: r.at_once, tools: r.tools,
+      agentSubject: r.agent_subject ?? "", agentMessage: r.agent_message ?? "", emailsPerDay: r.emails_per_day ?? 30,
     },
     status: { ...DEFAULT_STATUS, ...(r.tool_status ?? {}) },
   };
@@ -184,5 +185,28 @@ export function toSettingsBody(s: FinderSettings) {
   return {
     roles: s.roles, skip_sites: s.skipSites, templates: s.templates, subject: s.subject, message: s.message,
     daily_limit: s.dailyLimit, at_once: s.atOnce, tools: s.tools,
+    agent_subject: s.agentSubject, agent_message: s.agentMessage, emails_per_day: s.emailsPerDay,
   };
+}
+
+/* ---------- Agent runs ---------- */
+
+export type AgentStatus = "queued" | "running" | "sending" | "waiting" | "done" | "stopped" | "failed";
+
+export interface AgentRun {
+  id: string;
+  status: AgentStatus;
+  filters: { country: string; state: string; city: string; company_type: string; limit: number; mode: string };
+  steps: { id: string; label: string; state: "pending" | "running" | "done" | "failed"; note: string }[];
+  counts: { found?: number; new?: number; read?: number; emails?: number; sent?: number; skipped?: number; failed?: number };
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
+  companies?: Company[];
+}
+
+export const AGENT_ACTIVE: AgentStatus[] = ["queued", "running", "sending", "waiting"];
+
+export function toAgentRun(r: Row): AgentRun {
+  return { ...(r as AgentRun), companies: r.companies ? (r.companies as Row[]).map(toCompany) : undefined };
 }
