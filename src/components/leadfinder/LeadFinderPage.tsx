@@ -3,19 +3,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleCheck, KeyRound, WifiOff } from "lucide-react";
 import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
-import { type Company, type CompanyInput, type CompanyStatus, type Contact, DEFAULT_SETTINGS, type FinderSettings, type SearchFilters, type ToolId } from "@/lib/leadFinder";
-import { type FoundCompany, type Mailbox, type ToolStatus, call, foundToInput, send, toCompany, toCompanyBody, toSettings, toSettingsBody } from "@/lib/leadFinderApi";
-import { AddCompany } from "./AddCompany";
+import { type Company, type CompanyStatus, type Contact, DEFAULT_SETTINGS, type FinderSettings, type ToolId } from "@/lib/leadFinder";
+import { type Mailbox, type ToolStatus, call, send, toCompany, toSettings, toSettingsBody } from "@/lib/leadFinderApi";
 import { AgentPage } from "./AgentPage";
 import { CompanyReview } from "./CompanyReview";
 import { Dashboard } from "./Dashboard";
 import { FinderSettingsPanel, type SettingsSection } from "./FinderSettings";
 import { Results } from "./Results";
 
-export type View = "dashboard" | "agent" | "results" | "add" | "settings";
+export type View = "dashboard" | "agent" | "results" | "settings";
 const BUSY_MS = 3000; // while companies are being looked into, the page follows their steps
 const IDLE_MS = 30_000;
-const CHUNK = 500; // the server takes at most 500 companies at a time
 const NOT_CONNECTED: Record<ToolId, ToolStatus> = {
   hunter: { connected: false, on: true }, serper: { connected: false, on: true }, verifier: { connected: false, on: true }, places: { connected: false, on: true },
   ai: { connected: false, on: true }, apollo: { connected: false, on: true }, gplaces: { connected: false, on: true },
@@ -53,6 +51,8 @@ export function LeadFinderPage({
   const [loaded, setLoaded] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [status, setStatus] = useState<"all" | CompanyStatus>("all");
+  const [resultsRun, setResultsRun] = useState("all");
+  const [agentRun, setAgentRun] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   // A click in the top nav closes any open company review
   const [seenTick, setSeenTick] = useState(navTick);
@@ -129,6 +129,7 @@ export function LeadFinderPage({
       failed: companies.filter((c) => c.status === "failed").length,
       verified: people.filter((p) => p.emailStatus === "valid").length,
       risky: people.filter((p) => p.emailStatus === "catch_all").length,
+      sent: companies.flatMap((c) => c.contacts).filter((p) => p.sentAt).length,
     };
   }, [companies]);
 
@@ -142,41 +143,6 @@ export function LeadFinderPage({
   const filterBy = (s: "all" | CompanyStatus) => {
     setStatus(s);
     show("results");
-  };
-
-  const add = async (list: CompanyInput[], source: "manual" | "csv" | "search", searchId: string | null = null): Promise<Company[] | null> => {
-    const added: Company[] = [];
-    for (let i = 0; i < list.length; i += CHUNK) {
-      const res = await call<Record<string, unknown>[]>("/companies", send("POST", { companies: list.slice(i, i + CHUNK).map(toCompanyBody), source, search_id: searchId }));
-      if (res.error || !res.data) {
-        notify(res.error ?? "Couldn't add the companies.", true);
-        if (added.length) load();
-        return null;
-      }
-      added.push(...res.data.map(toCompany));
-    }
-    setCompanies((all) => [...added, ...all]);
-    return added;
-  };
-
-  const addOne = async (input: CompanyInput) => {
-    const added = await add([input], "manual");
-    if (!added) return;
-    notify(`${added[0].name} added. Watch each step finish here.`);
-    setOpenId(added[0].id);
-  };
-
-  const upload = async (list: CompanyInput[]) => {
-    if (!(await add(list, "csv"))) return;
-    notify(`${list.length} compan${list.length === 1 ? "y" : "ies"} added from your file. They are looked into ${settings.atOnce} at a time.`);
-    filterBy("all");
-  };
-
-  /** Companies picked from "Find companies": saved with the place and type you searched for, then looked into */
-  const enrichFound = async (picked: FoundCompany[], filters: SearchFilters, searchId: string | null) => {
-    if (!(await add(picked.map((c) => foundToInput(filters, c)), "search", searchId))) return;
-    notify(`${picked.length} compan${picked.length === 1 ? "y" : "ies"} added. Finding the people and their emails now.`);
-    filterBy("all");
   };
 
   /** Pick a person for the campaign or edit their line: shown at once, saved after a short pause */
@@ -296,16 +262,19 @@ export function LeadFinderPage({
         <>
           <div key={`${view}-${navTick}`} className="lf-view">
           {view === "dashboard" && (
-            <Dashboard companies={sorted} counts={counts} now={now} onFilter={filterBy} onAdd={() => show("add")} onAgent={() => show("agent")} onOpen={setOpenId} />
+            <Dashboard companies={companies} counts={counts} onFilter={filterBy} onAgent={() => show("agent")} />
           )}
           {view === "agent" && (
-            <AgentPage mailbox={mailbox} notify={notify} confirm={confirm}
+            <AgentPage key={agentRun ?? "home"} mailbox={mailbox} notify={notify} confirm={confirm} openRunId={agentRun}
+              bulkDefaults={{ subject: settings.agentSubject, message: settings.agentMessage }}
               onOpenCompany={async (id) => { await load(); setOpenId(id); }}
+              onSeeResults={(id) => { setResultsRun(id); setStatus("all"); setAgentRun(null); show("results"); }}
+              onClosed={() => setAgentRun(null)}
               onOpenMailbox={() => { setSettingsSection("mailbox"); show("settings"); }} />
           )}
-          {view === "results" && <Results companies={sorted} now={now} status={status} onStatus={setStatus} onOpen={setOpenId} onAdd={() => show("add")} />}
-          {view === "add" && (
-            <AddCompany settings={settings} onAdd={addOne} onUpload={upload} onAddFound={enrichFound} onOpenSettings={() => show("settings")} notify={notify} />
+          {view === "results" && (
+            <Results companies={sorted} now={now} status={status} onStatus={setStatus} run={resultsRun} onRun={setResultsRun} onOpen={setOpenId}
+              onOpenRun={(id) => { setAgentRun(id); show("agent"); }} onAgent={() => { setAgentRun(null); show("agent"); }} />
           )}
           {view === "settings" && (
             <FinderSettingsPanel

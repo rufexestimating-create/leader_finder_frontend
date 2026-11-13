@@ -2,14 +2,11 @@
 import { apiFetch, errorMessage, NETWORK_ERROR } from "@/lib/auth";
 import {
   type Company,
-  type CompanyInput,
   type Contact,
   type EmailStatus,
   type EnrichStep,
   type FinderSettings,
-  EMPTY_INPUT,
   type Priority,
-  type SearchFilters,
   STEPS,
   type ToolId,
   typeLabel,
@@ -106,57 +103,12 @@ export function toCompany(r: Row): Company {
     status: r.status,
     error: r.error ?? null,
     source: r.source,
+    agentRunId: r.agent_run_id ?? null,
+    agentMode: r.agent_mode ?? null,
     addedAt: Date.parse(r.created_at) || 0,
     steps: toSteps(r.steps),
     contacts: (r.contacts ?? []).map(toContact),
     sources: r.sources ?? [],
-  };
-}
-
-/* ---------- Screens -> API ---------- */
-
-export function toCompanyBody(c: CompanyInput) {
-  const year = /^\d{4}$/.test(c.foundedYear.trim()) ? Number(c.foundedYear) : null;
-  return {
-    name: c.name, website: c.website, country: c.country, state: c.state, city: c.city, size: c.size, company_type: c.companyType,
-    trades: c.trades, contact_roles: c.contactRoles, sectors: c.sectors, project_types: c.projectTypes, revenue: c.revenue,
-    project_size: c.projectSize, founded_year: year, service_area: c.serviceArea, software: c.software, naics: c.naics,
-    license_number: c.licenseNumber, credentials: c.credentials, priority: c.priority, tags: c.tags, found_via: c.foundVia, notes: c.notes,
-  };
-}
-
-/* ---------- Find companies ---------- */
-
-/** A company Hunter found: only its name and website are known, so the place and type come from your filters */
-export interface FoundCompany {
-  name: string;
-  domain: string;
-  emails: number;
-  in_list: boolean;
-}
-
-/** Each company found is saved with what you searched for: the place, and the company type or size when you picked one */
-export function foundToInput(f: SearchFilters, c: FoundCompany): CompanyInput {
-  const one = <T,>(xs: T[]) => (xs.length === 1 ? xs[0] : undefined);
-  const type = one(f.companyTypes);
-  return {
-    ...EMPTY_INPUT,
-    name: c.name,
-    website: c.domain,
-    country: f.countries[0] ?? "",
-    state: one(f.states) ?? "",
-    city: one(f.cities) ?? one(f.states) ?? f.countries[0] ?? "",
-    companyType: (type as CompanyInput["companyType"]) ?? "",
-    trades: type === "sub" ? f.trades : [],
-    size: one(f.sizes) ?? "",
-  };
-}
-
-export function toSearchBody(f: SearchFilters) {
-  return {
-    countries: f.countries, states: f.states, cities: f.cities, company_types: f.companyTypes, trades: f.trades, sizes: f.sizes,
-    ownership: f.ownership, keywords: f.keywords, keyword_match: f.keywordMatch, exclude_in_list: f.excludeInList,
-    exclude_domains: f.excludeDomains, limit: f.limit,
   };
 }
 
@@ -191,21 +143,29 @@ export function toSettingsBody(s: FinderSettings) {
 
 /* ---------- Agent runs ---------- */
 
-export type AgentStatus = "queued" | "running" | "sending" | "waiting" | "done" | "stopped" | "failed";
+export type AgentStatus = "queued" | "running" | "enriching" | "sending" | "waiting" | "done" | "stopped" | "failed";
 
 export interface AgentRun {
   id: string;
   status: AgentStatus;
-  filters: { country: string; state: string; city: string; company_type: string; limit: number; mode: string };
+  mode: "fast" | "smart" | "bulk";
+  filters: { country: string; state: string; city: string; company_type: string; limit: number; mode: string; subject?: string; recipients?: unknown[] };
   steps: { id: string; label: string; state: "pending" | "running" | "done" | "failed"; note: string }[];
-  counts: { found?: number; new?: number; read?: number; emails?: number; sent?: number; skipped?: number; failed?: number };
+  counts: {
+    found?: number; new?: number; read?: number; emails?: number; people?: number; sent?: number; skipped?: number; failed?: number;
+    /** Bulk send: addresses on the list, checked so far, and removed by the check */
+    total?: number; checked?: number; removed?: number;
+    /** The website being read right now */
+    current?: string | null;
+    log?: { t: string; text: string }[];
+  };
   error: string | null;
   created_at: string;
   finished_at: string | null;
   companies?: Company[];
 }
 
-export const AGENT_ACTIVE: AgentStatus[] = ["queued", "running", "sending", "waiting"];
+export const AGENT_ACTIVE: AgentStatus[] = ["queued", "running", "enriching", "sending", "waiting"];
 
 export function toAgentRun(r: Row): AgentRun {
   return { ...(r as AgentRun), companies: r.companies ? (r.companies as Row[]).map(toCompany) : undefined };

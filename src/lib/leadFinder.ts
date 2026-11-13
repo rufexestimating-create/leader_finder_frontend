@@ -277,6 +277,10 @@ export interface Company {
   /** Why it couldn't finish, in plain words */
   error: string | null;
   source: CompanySource;
+  /** Set when ReachAgent's automatic run found this company */
+  agentRunId?: string | null;
+  /** How that agent run worked: "fast" = without enrichment, "smart" = with enrichment */
+  agentMode?: "fast" | "smart" | "bulk" | null;
   addedAt: number;
   steps: EnrichStep[];
   contacts: Contact[];
@@ -408,7 +412,7 @@ export function pickLine(c: Facts, templates: LineTemplate[]): { line: string; t
 
 /** The email as this person will get it */
 export function renderEmail(settings: FinderSettings, company: Company, contact: Contact) {
-  const first = contact.name.split(" ")[0];
+  const first = contact.title === "Company email" ? `${company.name} team` : contact.name.split(" ")[0];
   const fill = (s: string) =>
     s
       .replace(/\{\{\s*first_name\s*\}\}/g, first)

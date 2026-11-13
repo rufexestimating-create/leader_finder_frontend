@@ -87,8 +87,8 @@ export function FinderSettingsPanel({
 
   const sections: { id: Section; icon: React.ReactNode; title: string; sub: string }[] = [
     { id: "people", icon: <UserSearch size={18} />, title: "Who to look for", sub: `${draft.roles.default?.length ?? 0} job titles` },
-    { id: "message", icon: <Mail size={18} />, title: "Your email", sub: draft.subject || "No subject yet" },
-    { id: "agent", icon: <Bot size={18} />, title: "Agent message", sub: `${draft.emailsPerDay} emails a day` },
+    { id: "message", icon: <Mail size={18} />, title: "Message: with enrichment", sub: "AI writes each opening line" },
+    { id: "agent", icon: <Bot size={18} />, title: "Message: without enrichment", sub: `Same for everyone · ${draft.emailsPerDay} a day` },
     { id: "mailbox", icon: <Inbox size={18} />, title: "Your mailbox", sub: mailbox?.connected ? mailbox.email ?? "Connected" : "Not connected" },
     { id: "lines", icon: <MessageSquareText size={18} />, title: "Personal lines", sub: `${activeLines} in use` },
     { id: "limits", icon: <Gauge size={18} />, title: "Daily limits", sub: `${draft.dailyLimit} a day, ${draft.atOnce} at once` },
@@ -183,8 +183,9 @@ export function FinderSettingsPanel({
         {section === "message" && (
           <>
             <header className="lf-set-head">
-              <h3>Your email</h3>
-              <p>Everyone gets this email. Click a button below to drop in their name, company or personal line.</p>
+              <h3>Message: with enrichment</h3>
+              <p>Sent when the agent runs with enrichment. <code>{"{{personal_line}}"}</code> is written for each person by the AI (Gemini) from
+                what was found about their company, so every email opens differently. Click a button below to drop in their name, company or personal line.</p>
             </header>
             <div className="lf-set-split">
               <div className="lf-set-col">
@@ -218,8 +219,8 @@ export function FinderSettingsPanel({
         {section === "agent" && (
           <>
             <header className="lf-set-head">
-              <h3>Agent message</h3>
-              <p>What the agent sends when it runs without enrichment. <code>{"{{greeting}}"}</code> becomes &ldquo;Hi Alfonso,&rdquo; when the website names
+              <h3>Message: without enrichment</h3>
+              <p>Sent when the agent runs without enrichment: the same message for everyone, no AI. <code>{"{{greeting}}"}</code> becomes &ldquo;Hi Alfonso,&rdquo; when the website names
                 someone, otherwise &ldquo;Hi CTC Contractors team,&rdquo;. You can also use <code>{"{{company}}"}</code> and <code>{"{{city}}"}</code>.</p>
             </header>
             <div className="lf-set-split">

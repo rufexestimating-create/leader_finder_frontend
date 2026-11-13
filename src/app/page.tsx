@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Bot, CheckCircle2, LayoutGrid, ListChecks, LogOut, PlusCircle, Settings2, WifiOff } from "lucide-react";
+import { AlertCircle, Bot, CheckCircle2, LayoutGrid, ListChecks, LogOut, Settings2, WifiOff } from "lucide-react";
 import { Brand } from "@/components/AuthShell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ConfirmDialog, type ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
@@ -11,7 +11,6 @@ import { LeadFinderPage, type View } from "@/components/leadfinder/LeadFinderPag
 const NAV: { id: View; label: string; icon: React.ReactNode }[] = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutGrid size={15} aria-hidden="true" /> },
   { id: "agent", label: "Agent", icon: <Bot size={15} aria-hidden="true" /> },
-  { id: "add", label: "Add companies", icon: <PlusCircle size={15} aria-hidden="true" /> },
   { id: "results", label: "Results", icon: <ListChecks size={15} aria-hidden="true" /> },
   { id: "settings", label: "Settings", icon: <Settings2 size={15} aria-hidden="true" /> },
 ];
