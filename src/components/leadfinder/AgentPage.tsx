@@ -112,7 +112,7 @@ export function AgentPage({
 }) {
   const [run, setRun] = useState<AgentRun | null>(null);
   const [form, setForm] = useState({
-    country: "United States", state: "Texas", city: "", company_type: "gc", limit: 20, mode: "fast" as "fast" | "smart" | "bulk",
+    country: "United States", state: "Texas", city: "", company_type: "gc", limit: 10, mode: "fast" as "fast" | "smart" | "bulk",
     list: "", subject: "", message: "",
   });
   const recipients = form.mode === "bulk" ? parseRecipients(form.list) : [];
