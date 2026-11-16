@@ -8,7 +8,7 @@ const HEADERS = [
 
 /** Whether the result came with or without the paid enrichment tools, and which tools did the work */
 function howFound(c: Company): [string, string, string] {
-  if (c.agentMode === "fast") return ["Without enrichment", "Google Maps, company website (no API key)", "ReachAgent"];
+  if (c.agentMode === "fast") return ["Without enrichment", "Google Maps, BBB, OpenStreetMap, company website (no API key)", "ReachAgent"];
   if (c.agentMode === "smart") return ["With enrichment", "Google Maps, Hunter, Reoon, AI", "ReachAgent"];
   if (c.agentMode === "bulk") return ["Bulk send", "Your own list, checked before sending", "ReachAgent bulk send"];
   // Added before the agent: always went through the enrichment pipeline

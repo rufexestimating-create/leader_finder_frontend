@@ -27,7 +27,7 @@ const STEP_ICON: Record<string, React.ReactNode> = {
   send: <Send size={18} />, check: <ShieldCheck size={18} />,
 };
 const SHORT: Record<string, string> = {
-  find: "Scan Google Maps", save: "Save companies", read: "Read websites", emails: "Find emails", enrich: "Enrich owners", send: "Send emails", check: "Check emails",
+  find: "Find companies", save: "Save companies", read: "Read websites", emails: "Find emails", enrich: "Enrich owners", send: "Send emails", check: "Check emails",
 };
 type Recipient = { email: string; name: string; company: string };
 
@@ -201,7 +201,7 @@ export function AgentPage({
       ? [["On your list", c.total], ["Checked", c.checked], ["Ready to send", c.emails], ["Removed", c.removed], ["Sent", c.sent]]
       : smart
       ? [["On Google Maps", c.found], ["New companies", c.new], ["Enriched", c.read], ["People", c.people], ["Emails picked", c.emails], ["Sent", c.sent]]
-      : [["On Google Maps", c.found], ["New companies", c.new], ["Websites read", c.read], ["Emails found", c.emails], ["Sent", c.sent]];
+      : [["Found", c.found], ["New companies", c.new], ["Websites read", c.read], ["Emails found", c.emails], ["Sent", c.sent]];
     const log = [...(c.log ?? [])].reverse().slice(0, 40);
 
     return (
@@ -317,12 +317,12 @@ export function AgentPage({
           <Core state="idle" />
           <span className="ag-eyebrow"><i className="ag-dot is-ok" aria-hidden="true" /> Agent online</span>
           <h2 className="ag-home-title">What should ReachAgent find today?</h2>
-          <p className="ag-home-sub">Give it a city and a kind of company. It scans Google Maps, reads every website, finds the emails and sends your message, on its own.</p>
+          <p className="ag-home-sub">Give it a city and a kind of company. It searches Google Maps, BBB and OpenStreetMap, reads every website in depth, finds the emails and sends your message, on its own.</p>
           <button type="button" className="ag-launch ag-launch--xl" onClick={() => setShowForm(true)}>
             <Zap size={24} aria-hidden="true" /> START AGENT
           </button>
           <ul className="ag-caps">
-            <li><Radar size={14} aria-hidden="true" /> Google Maps scan</li>
+            <li><Radar size={14} aria-hidden="true" /> Maps and directories</li>
             <li><Globe size={14} aria-hidden="true" /> Website reading</li>
             <li><Mail size={14} aria-hidden="true" /> Email discovery</li>
             <li><Send size={14} aria-hidden="true" /> Auto outreach</li>
@@ -369,8 +369,8 @@ export function AgentPage({
               <span className="ag-mode-icon"><Zap size={20} aria-hidden="true" /></span>
               <span className="ag-mode-text">
                 <strong>Without enrichment <em>Free</em></strong>
-                <span>Finds companies on Google Maps and emails them at the address on their own website. Same message for everyone.</span>
-                <span className="ag-tools"><i>Google Maps</i><i>Website</i><i>Mail server check</i></span>
+                <span>Finds companies on Google Maps, BBB and OpenStreetMap, reads their team, about and contact pages, and emails them. Same message for everyone.</span>
+                <span className="ag-tools"><i>Google Maps</i><i>BBB</i><i>OpenStreetMap</i><i>Deep website read</i><i>Mail server check</i></span>
               </span>
             </button>
             <button type="button" role="radio" aria-checked={form.mode === "smart"} className={`ag-mode${form.mode === "smart" ? " is-on" : ""}`} onClick={() => set("mode", "smart")}>

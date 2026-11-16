@@ -35,7 +35,7 @@ export function StepProgress({ c }: { c: Company }) {
 
 /** With or without enrichment: companies added before the agent always went through enrichment */
 export const MODE = {
-  fast: { label: "Without enrichment", tone: "neutral", hint: "Found on Google Maps, email from the company's own website. No API key used." },
+  fast: { label: "Without enrichment", tone: "neutral", hint: "Found on Google Maps, BBB or OpenStreetMap, email from the company's own website. No API key used." },
   smart: { label: "With enrichment", tone: "violet", hint: "Owners' emails from Hunter, checked by Reoon, personal line by AI." },
   bulk: { label: "Bulk send", tone: "info", hint: "From your own list, checked before sending, with your own message." },
 } as const;
