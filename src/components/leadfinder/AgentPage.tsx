@@ -11,7 +11,8 @@ import { AGENT_ACTIVE, type AgentRun, type Mailbox, call, send, toAgentRun } fro
 import { Combobox, Select } from "./Dropdown";
 
 const POLL_MS = 3000;
-const SIZES = [10, 20, 30, 50];
+const SIZES = [10, 50, 100, 250, 500, 1000];
+const SMART_SIZES = [10, 20, 30, 50];
 const STATUS: Record<AgentRun["status"], { label: string; tone: "live" | "ok" | "warn" | "bad" | "idle" }> = {
   queued: { label: "Booting", tone: "live" },
   running: { label: "Scanning", tone: "live" },
@@ -373,7 +374,7 @@ export function AgentPage({
                 <span className="ag-tools"><i>Google Maps</i><i>BBB</i><i>OpenStreetMap</i><i>Deep website read</i><i>Mail server check</i></span>
               </span>
             </button>
-            <button type="button" role="radio" aria-checked={form.mode === "smart"} className={`ag-mode${form.mode === "smart" ? " is-on" : ""}`} onClick={() => set("mode", "smart")}>
+            <button type="button" role="radio" aria-checked={form.mode === "smart"} className={`ag-mode${form.mode === "smart" ? " is-on" : ""}`} onClick={() => setForm((f) => ({ ...f, mode: "smart", limit: Math.min(f.limit, 50) }))}>
               <span className="ag-mode-icon"><Sparkles size={20} aria-hidden="true" /></span>
               <span className="ag-mode-text">
                 <strong>With enrichment <em>Uses credits</em></strong>
@@ -463,7 +464,7 @@ export function AgentPage({
             <fieldset className="ag-section">
               <legend><span>03</span> How many companies</legend>
               <div className="ag-sizes" role="radiogroup" aria-label="How many companies">
-                {SIZES.map((n) => (
+                {(form.mode === "smart" ? SMART_SIZES : SIZES).map((n) => (
                   <button key={n} type="button" role="radio" aria-checked={form.limit === n} className={form.limit === n ? "is-on" : ""} onClick={() => set("limit", n)}>
                     <strong>{n}</strong><span>companies</span>
                   </button>
