@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Inbox, Send, ShieldCheck, Trash2 } from "lucide-react";
 import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import { type Mailbox, call, send } from "@/lib/leadFinderApi";
@@ -81,6 +81,16 @@ export function MailboxSettings({
     });
   };
 
+  const savedTestTo = mailbox?.test_to && mailbox.test_to !== mailbox.email ? mailbox.test_to : "";
+  const [testTo, setTestTo] = useState(savedTestTo);
+  useEffect(() => setTestTo(savedTestTo), [savedTestTo]);
+  const saveTestTo = async () => {
+    const res = await call<Mailbox>("/mailbox", send("PATCH", { test_to: testTo.trim() }));
+    if (res.error || !res.data) return notify(res.error ?? "The test inbox couldn't be saved.", true);
+    onChange(res.data);
+    notify(`Test emails now go to ${res.data.test_to}.`);
+  };
+
   const remove = () =>
     confirm({
       title: "Disconnect your mailbox?",
@@ -129,9 +139,20 @@ export function MailboxSettings({
             {connected && (
               <p className={`lf-key-note ${mailbox.test_mode !== false ? "is-ok" : "is-bad"}`}>
                 {mailbox.test_mode !== false
-                  ? `Test mode is on: every email goes to ${mailbox.email}, with the real person's name and address written at the top. Nobody else gets anything.`
+                  ? `Test mode is on: every email goes to ${mailbox.test_to || mailbox.email}, with the real person's name and address written at the top. Nobody else gets anything.`
                   : "Test mode is off: Send emails the real people."}
               </p>
+            )}
+            {connected && mailbox.test_mode !== false && (
+              <form className="lf-key-row" onSubmit={(e) => { e.preventDefault(); saveTestTo(); }}>
+                <label className="field" style={{ flex: 1, margin: 0 }}>
+                  <span className="field-label">Send test emails to</span>
+                  <input className="input" type="email" value={testTo} placeholder={`${mailbox.email} (your mailbox)`}
+                    onChange={(e) => setTestTo(e.target.value)} aria-label="Send test emails to" />
+                </label>
+                <button type="submit" className="btn btn-secondary btn-sm"
+                  disabled={testTo.trim() === savedTestTo}>Save</button>
+              </form>
             )}
             <p className="lf-key-does">
               {connected
