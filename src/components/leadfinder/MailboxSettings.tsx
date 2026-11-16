@@ -7,8 +7,10 @@ import { type Mailbox, call, send } from "@/lib/leadFinderApi";
 
 type Note = { ok: boolean; text: string };
 type Form = { email: string; password: string; from_name: string; smtp_host: string; smtp_port: number; imap_host: string; imap_port: number };
+type SendForm = { send_host: string; send_port: number; send_user: string; send_pass: string };
 
 const HOSTINGER = { smtp_host: "smtp.hostinger.com", smtp_port: 465, imap_host: "imap.hostinger.com", imap_port: 993 };
+const BREVO_DEFAULTS = { send_host: "smtp-relay.brevo.com", send_port: 587, send_user: "", send_pass: "" };
 
 /** The user's own mailbox: emails go out from it and replies arrive in its inbox */
 export function MailboxSettings({
@@ -80,6 +82,54 @@ export function MailboxSettings({
       onConfirm: apply,
     });
   };
+
+  // --- Sending server (Brevo) state ---
+  const hasSend = !!(mailbox?.send_host);
+  const sendFromSaved = (): SendForm => ({
+    send_host: mailbox?.send_host || BREVO_DEFAULTS.send_host,
+    send_port: mailbox?.send_port || BREVO_DEFAULTS.send_port,
+    send_user: mailbox?.send_user || "",
+    send_pass: "",
+  });
+  const [sendForm, setSendForm] = useState<SendForm>(sendFromSaved);
+  const [sendEditing, setSendEditing] = useState(false);
+  const [sendBusy, setSendBusy] = useState<"save" | "remove" | null>(null);
+  const [sendNote, setSendNote] = useState<Note | null>(null);
+  const setSend = <K extends keyof SendForm>(k: K, v: SendForm[K]) => setSendForm((f) => ({ ...f, [k]: v }));
+  const canSaveSend = sendForm.send_host.trim() && sendForm.send_user.trim() && sendForm.send_pass && !sendBusy;
+
+  const saveSend = async () => {
+    if (!canSaveSend) return;
+    setSendBusy("save");
+    setSendNote(null);
+    const res = await call<Mailbox & { message: string }>("/mailbox/smtp", send("PUT", sendForm));
+    setSendBusy(null);
+    if (res.error || !res.data) return setSendNote({ ok: false, text: res.error ?? "The sending server couldn't be saved." });
+    const { message, ...saved } = res.data;
+    onChange(saved);
+    setSendEditing(false);
+    setSend("send_pass", "");
+    setSendNote({ ok: true, text: message });
+  };
+
+  const removeSend = () =>
+    confirm({
+      title: "Remove sending server?",
+      message: "Emails will go out through your Hostinger mailbox again.",
+      confirmLabel: "Remove",
+      cancelLabel: "Keep it",
+      danger: false,
+      onConfirm: async () => {
+        setSendBusy("remove");
+        const res = await call("/mailbox/smtp", send("DELETE"));
+        setSendBusy(null);
+        if (res.error) return setSendNote({ ok: false, text: res.error });
+        onChange({ ...mailbox!, send_host: "", send_user: "" });
+        setSendForm(BREVO_DEFAULTS);
+        setSendNote(null);
+        notify("Sending server removed. Emails go through Hostinger again.");
+      },
+    });
 
   const savedTestTo = mailbox?.test_to && mailbox.test_to !== mailbox.email ? mailbox.test_to : "";
   const [testTo, setTestTo] = useState(savedTestTo);
@@ -227,6 +277,73 @@ export function MailboxSettings({
 
             {note && <p className={`lf-key-note ${note.ok ? "is-ok" : "is-bad"}`} role={note.ok ? "status" : "alert"}>{note.text}</p>}
           </li>
+
+          {/* ---- Sending server (Brevo etc.) ---- */}
+          {connected && (
+            <li className={`lf-key${hasSend ? " is-on" : ""}`}>
+              <div className="lf-key-head">
+                <span className={`lf-tool-dot${hasSend ? " ok" : ""}`} aria-hidden="true" />
+                <strong>Sending server</strong>
+                <span className="pill no-dot tone-info">Optional</span>
+              </div>
+              <p className="lf-key-does">
+                {hasSend
+                  ? `Emails go out through ${mailbox.send_host} (${mailbox.send_user}). Your Hostinger mailbox is used only for IMAP.`
+                  : "By default emails go out through your Hostinger SMTP. Connect Brevo (free: 300/day) to use a dedicated sending server instead."}
+              </p>
+
+              {hasSend && !sendEditing && (
+                <div className="lf-key-row">
+                  <span className="lf-key-mask"><Send size={14} aria-hidden="true" /> {mailbox.send_host}</span>
+                  <div className="lf-key-actions">
+                    <button type="button" className="btn btn-ghost btn-sm"
+                      onClick={() => { setSendForm(sendFromSaved()); setSendEditing(true); setSendNote(null); }}>Change</button>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={sendBusy === "remove"} onClick={removeSend}>
+                      {sendBusy === "remove" ? "Removing…" : "Remove"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {(!hasSend || sendEditing) && (
+                <form className="lf-mailbox-form" onSubmit={(e) => { e.preventDefault(); saveSend(); }}>
+                  <div className="lf-mailbox-grid">
+                    <label className="field">
+                      <span className="field-label">SMTP server</span>
+                      <input className="input" value={sendForm.send_host} disabled={!!sendBusy}
+                        onChange={(e) => setSend("send_host", e.target.value)} placeholder="smtp-relay.brevo.com" />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Port</span>
+                      <input className="input" type="number" value={sendForm.send_port} disabled={!!sendBusy}
+                        onChange={(e) => setSend("send_port", Number(e.target.value) || 587)} />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Login (SMTP username)</span>
+                      <input className="input" autoComplete="off" value={sendForm.send_user} disabled={!!sendBusy}
+                        onChange={(e) => setSend("send_user", e.target.value)} placeholder="c3a7c1001@smtp-brevo.com" />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">SMTP key / password</span>
+                      <input className="input" type="password" autoComplete="new-password" value={sendForm.send_pass} disabled={!!sendBusy}
+                        onChange={(e) => setSend("send_pass", e.target.value)} placeholder="xsmtpsib-…" />
+                    </label>
+                  </div>
+                  <div className="lf-key-actions">
+                    <button type="submit" className="btn btn-primary btn-sm" disabled={!canSaveSend}>
+                      {sendBusy === "save" ? "Checking…" : "Save and check"}
+                    </button>
+                    {hasSend && (
+                      <button type="button" className="btn btn-ghost btn-sm"
+                        onClick={() => { setSendEditing(false); setSendNote(null); }}>Cancel</button>
+                    )}
+                  </div>
+                </form>
+              )}
+
+              {sendNote && <p className={`lf-key-note ${sendNote.ok ? "is-ok" : "is-bad"}`} role={sendNote.ok ? "status" : "alert"}>{sendNote.text}</p>}
+            </li>
+          )}
         </ul>
       )}
     </div>

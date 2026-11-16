@@ -65,6 +65,11 @@ export interface Mailbox {
   test_mode?: boolean;
   /** The inbox test emails go to: the one chosen in Settings, else the mailbox itself */
   test_to?: string;
+  /** External sending server host (e.g. smtp-relay.brevo.com); empty when not configured */
+  send_host?: string;
+  send_port?: number;
+  /** SMTP login for the sending server */
+  send_user?: string;
 }
 
 /** Always 8 steps, even for a company that was just added */
