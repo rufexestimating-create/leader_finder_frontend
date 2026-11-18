@@ -11,6 +11,15 @@ type SendForm = { send_host: string; send_port: number; send_user: string; send_
 
 const HOSTINGER = { smtp_host: "smtp.hostinger.com", smtp_port: 465, imap_host: "imap.hostinger.com", imap_port: 993 };
 const BREVO_DEFAULTS = { send_host: "smtp-relay.brevo.com", send_port: 587, send_user: "", send_pass: "" };
+const ELASTIC_DEFAULTS = { send_host: "smtp.elasticemail.com", send_port: 2525, send_user: "", send_pass: "" };
+
+type SendProvider = "brevo" | "elastic" | "custom";
+
+function detectProvider(host: string): SendProvider {
+  if (!host || host === BREVO_DEFAULTS.send_host) return "brevo";
+  if (host === ELASTIC_DEFAULTS.send_host) return "elastic";
+  return "custom";
+}
 
 /** The user's own mailbox: emails go out from it and replies arrive in its inbox */
 export function MailboxSettings({
@@ -95,7 +104,14 @@ export function MailboxSettings({
   const [sendEditing, setSendEditing] = useState(false);
   const [sendBusy, setSendBusy] = useState<"save" | "remove" | null>(null);
   const [sendNote, setSendNote] = useState<Note | null>(null);
+  const [sendProvider, setSendProvider] = useState<SendProvider>(() => detectProvider(mailbox?.send_host ?? ""));
   const setSend = <K extends keyof SendForm>(k: K, v: SendForm[K]) => setSendForm((f) => ({ ...f, [k]: v }));
+
+  const switchProvider = (p: SendProvider) => {
+    setSendProvider(p);
+    if (p === "brevo") setSendForm((f) => ({ ...f, send_host: BREVO_DEFAULTS.send_host, send_port: BREVO_DEFAULTS.send_port }));
+    if (p === "elastic") setSendForm((f) => ({ ...f, send_host: ELASTIC_DEFAULTS.send_host, send_port: ELASTIC_DEFAULTS.send_port }));
+  };
   const canSaveSend = sendForm.send_host.trim() && sendForm.send_user.trim() && sendForm.send_pass && !sendBusy;
 
   const saveSend = async () => {
@@ -126,6 +142,7 @@ export function MailboxSettings({
         if (res.error) return setSendNote({ ok: false, text: res.error });
         onChange({ ...mailbox!, send_host: "", send_user: "" });
         setSendForm(BREVO_DEFAULTS);
+        setSendProvider("brevo");
         setSendNote(null);
         notify("Sending server removed. Emails go through Hostinger again.");
       },
@@ -289,7 +306,7 @@ export function MailboxSettings({
               <p className="lf-key-does">
                 {hasSend
                   ? `Emails go out through ${mailbox.send_host} (${mailbox.send_user}). Your Hostinger mailbox is used only for IMAP.`
-                  : "By default emails go out through your Hostinger SMTP. Connect Brevo (free: 300/day) to use a dedicated sending server instead."}
+                  : "By default emails go out through your Hostinger SMTP. Connect Brevo or Elastic Email to use a dedicated sending server instead."}
               </p>
 
               {hasSend && !sendEditing && (
@@ -297,7 +314,7 @@ export function MailboxSettings({
                   <span className="lf-key-mask"><Send size={14} aria-hidden="true" /> {mailbox.send_host}</span>
                   <div className="lf-key-actions">
                     <button type="button" className="btn btn-ghost btn-sm"
-                      onClick={() => { setSendForm(sendFromSaved()); setSendEditing(true); setSendNote(null); }}>Change</button>
+                      onClick={() => { const saved = sendFromSaved(); setSendForm(saved); setSendProvider(detectProvider(saved.send_host)); setSendEditing(true); setSendNote(null); }}>Change</button>
                     <button type="button" className="btn btn-ghost btn-sm" disabled={sendBusy === "remove"} onClick={removeSend}>
                       {sendBusy === "remove" ? "Removing…" : "Remove"}
                     </button>
@@ -307,28 +324,55 @@ export function MailboxSettings({
 
               {(!hasSend || sendEditing) && (
                 <form className="lf-mailbox-form" onSubmit={(e) => { e.preventDefault(); saveSend(); }}>
+                  {/* Provider selector */}
+                  <div className="lf-key-row" style={{ marginBottom: 8 }}>
+                    {(["brevo", "elastic", "custom"] as SendProvider[]).map((p) => (
+                      <label key={p} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", marginRight: 12 }}>
+                        <input type="radio" name="send_provider" value={p} checked={sendProvider === p}
+                          onChange={() => switchProvider(p)} disabled={!!sendBusy} />
+                        <span>{p === "brevo" ? "Brevo" : p === "elastic" ? "Elastic Email" : "Custom SMTP"}</span>
+                      </label>
+                    ))}
+                  </div>
                   <div className="lf-mailbox-grid">
+                    {sendProvider === "custom" && (
+                      <>
+                        <label className="field">
+                          <span className="field-label">SMTP server</span>
+                          <input className="input" value={sendForm.send_host} disabled={!!sendBusy}
+                            onChange={(e) => setSend("send_host", e.target.value)} placeholder="smtp.yourprovider.com" />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">Port</span>
+                          <input className="input" type="number" value={sendForm.send_port} disabled={!!sendBusy}
+                            onChange={(e) => setSend("send_port", Number(e.target.value) || 587)} />
+                        </label>
+                      </>
+                    )}
                     <label className="field">
-                      <span className="field-label">SMTP server</span>
-                      <input className="input" value={sendForm.send_host} disabled={!!sendBusy}
-                        onChange={(e) => setSend("send_host", e.target.value)} placeholder="smtp-relay.brevo.com" />
-                    </label>
-                    <label className="field">
-                      <span className="field-label">Port</span>
-                      <input className="input" type="number" value={sendForm.send_port} disabled={!!sendBusy}
-                        onChange={(e) => setSend("send_port", Number(e.target.value) || 587)} />
-                    </label>
-                    <label className="field">
-                      <span className="field-label">Login (SMTP username)</span>
+                      <span className="field-label">
+                        {sendProvider === "elastic" ? "Account email (SMTP username)" : sendProvider === "brevo" ? "Login (SMTP username)" : "SMTP username"}
+                      </span>
                       <input className="input" autoComplete="off" value={sendForm.send_user} disabled={!!sendBusy}
-                        onChange={(e) => setSend("send_user", e.target.value)} placeholder="c3a7c1001@smtp-brevo.com" />
+                        onChange={(e) => setSend("send_user", e.target.value)}
+                        placeholder={sendProvider === "brevo" ? "c3a7c1001@smtp-brevo.com" : sendProvider === "elastic" ? "you@yourdomain.com" : "username"} />
                     </label>
                     <label className="field">
-                      <span className="field-label">SMTP key / password</span>
+                      <span className="field-label">
+                        {sendProvider === "elastic" ? "API key" : sendProvider === "brevo" ? "SMTP key" : "Password"}
+                      </span>
                       <input className="input" type="password" autoComplete="new-password" value={sendForm.send_pass} disabled={!!sendBusy}
-                        onChange={(e) => setSend("send_pass", e.target.value)} placeholder="xsmtpsib-…" />
+                        onChange={(e) => setSend("send_pass", e.target.value)}
+                        placeholder={sendProvider === "brevo" ? "xsmtpsib-…" : sendProvider === "elastic" ? "82B695CF…" : "password"} />
                     </label>
                   </div>
+                  {sendProvider !== "custom" && (
+                    <p style={{ fontSize: "0.78rem", color: "var(--text-3, #888)", marginBottom: 4 }}>
+                      {sendProvider === "brevo"
+                        ? `Host: ${BREVO_DEFAULTS.send_host} · Port: ${BREVO_DEFAULTS.send_port}`
+                        : `Host: ${ELASTIC_DEFAULTS.send_host} · Port: ${ELASTIC_DEFAULTS.send_port}`}
+                    </p>
+                  )}
                   <div className="lf-key-actions">
                     <button type="submit" className="btn btn-primary btn-sm" disabled={!canSaveSend}>
                       {sendBusy === "save" ? "Checking…" : "Save and check"}
