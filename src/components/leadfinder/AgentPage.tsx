@@ -2,13 +2,13 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ArrowLeft, ArrowRight, Bot, Building2, CircleAlert, CircleCheck, FileUp, FlaskConical, Globe, LayoutDashboard, Link2, ListPlus, LoaderCircle, Mail, Plus, Radar,
+  ArrowLeft, ArrowRight, Bot, Building2, CircleAlert, CircleCheck, FileUp, FlaskConical, Globe, LayoutDashboard, Link2, ListPlus, LoaderCircle, Mail, Plus, Radar, RotateCw,
   Send, ShieldCheck, Sparkles, Square, Terminal, Zap,
 } from "lucide-react";
 import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import { COMPANY_TYPES, COUNTRIES, US_STATES } from "@/lib/leadFinder";
 import { AGENT_ACTIVE, type AgentRun, type Mailbox, call, send, toAgentRun } from "@/lib/leadFinderApi";
-import { MODE_LABEL, STATUS, progressOf, runName, siteOf, statusLabel, typeLabel } from "./agentRun";
+import { MODE_LABEL, STATUS, canResume, progressOf, runName, siteOf, statusLabel, typeLabel } from "./agentRun";
 import { AgentsPanel } from "./AgentsPanel";
 import { Combobox, Select } from "./Dropdown";
 
@@ -191,6 +191,17 @@ export function AgentPage({
       },
     });
 
+  const [resuming, setResuming] = useState(false);
+  const resume = async () => {
+    if (!run) return;
+    setResuming(true);
+    const res = await call<Record<string, unknown>>(`/agent/runs/${run.id}/resume`, send("POST"));
+    setResuming(false);
+    if (res.error || !res.data) return notify(res.error ?? "The agent couldn't carry on.", true);
+    setRun(toAgentRun(res.data));
+    notify("The agent carries on from where it stopped.");
+  };
+
   const newRun = () => {
     setRun(null);
     setShowForm(false);
@@ -239,7 +250,12 @@ export function AgentPage({
               </p>
               <div className="ag-actions">
                 {active && <button type="button" className="ag-btn ag-btn--ghost" onClick={stop}><Square size={15} aria-hidden="true" /> Stop agent</button>}
-                <button type="button" className={`ag-btn ${active ? "ag-btn--ghost" : "ag-btn--primary"}`} onClick={active ? onNewAgent : newRun}>
+                {canResume(run) && (
+                  <button type="button" className="ag-btn ag-btn--primary" onClick={resume} disabled={resuming}>
+                    <RotateCw size={16} aria-hidden="true" className={resuming ? "spin" : undefined} /> {resuming ? "Carrying on…" : "Continue from where it stopped"}
+                  </button>
+                )}
+                <button type="button" className={`ag-btn ${active || canResume(run) ? "ag-btn--ghost" : "ag-btn--primary"}`} onClick={active ? onNewAgent : newRun}>
                   {active ? <Plus size={16} aria-hidden="true" /> : <Zap size={16} aria-hidden="true" />} {active ? "Start another agent" : "New mission"}
                 </button>
                 <button type="button" className="ag-btn ag-btn--ghost" onClick={onDashboard}><LayoutDashboard size={15} aria-hidden="true" /> All agents</button>

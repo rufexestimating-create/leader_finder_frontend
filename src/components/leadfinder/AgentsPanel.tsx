@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowUpRight, Bot, Building2, CircleCheck, Mail, MapPin, Plus, Radar, Rocket, Send, Square, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, Bot, Building2, CircleCheck, Mail, MapPin, Plus, Radar, Rocket, RotateCw, Send, Square, TriangleAlert } from "lucide-react";
 import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import { AGENT_ACTIVE, type AgentRun, call, send, toAgentRun } from "@/lib/leadFinderApi";
-import { MODE_LABEL, STATUS, place, progressOf, runName, statusLabel } from "./agentRun";
+import { MODE_LABEL, STATUS, canResume, place, progressOf, runName, statusLabel } from "./agentRun";
 
 const LIVE_MS = 4000;
 const IDLE_MS = 30_000;
@@ -74,6 +74,16 @@ export function AgentsPanel({
       },
     });
 
+  const [resuming, setResuming] = useState<string | null>(null);
+  const resume = async (run: AgentRun) => {
+    setResuming(run.id);
+    const res = await call(`/agent/runs/${run.id}/resume`, send("POST"));
+    setResuming(null);
+    if (res.error) return notify(res.error, true);
+    notify("The agent carries on from where it stopped.");
+    load();
+  };
+
   const card = (run: AgentRun, idx: number) => {
     const st = STATUS[run.status];
     const live = AGENT_ACTIVE.includes(run.status);
@@ -138,6 +148,12 @@ export function AgentsPanel({
         {live && (
           <button type="button" className="sp-stop" onClick={() => stop(run)} aria-label={`Stop ${runName(run)}`}>
             <Square size={10} aria-hidden="true" /> Stop
+          </button>
+        )}
+        {canResume(run) && (
+          <button type="button" className="sp-stop sp-resume" onClick={() => resume(run)} disabled={resuming === run.id}
+            aria-label={`Continue ${runName(run)} from where it stopped`}>
+            <RotateCw size={10} aria-hidden="true" className={resuming === run.id ? "spin" : undefined} /> Continue
           </button>
         )}
       </li>

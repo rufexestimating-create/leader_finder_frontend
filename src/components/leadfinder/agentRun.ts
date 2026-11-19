@@ -39,6 +39,9 @@ export function runName(run: AgentRun): string {
   return `${kind} in ${[run.filters.city, run.filters.state].filter(Boolean).join(", ")}`;
 }
 
+/** A failed or stopped run can carry on from where it ended */
+export const canResume = (run: AgentRun) => run.status === "failed" || run.status === "stopped";
+
 export function statusLabel(run: AgentRun): string {
   if (run.status === "queued" && run.queue_position) {
     return run.queue_position === 1 ? "Queued · starts next" : `Queued · #${run.queue_position} in line`;
