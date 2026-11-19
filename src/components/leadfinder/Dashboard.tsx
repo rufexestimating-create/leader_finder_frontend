@@ -1,9 +1,15 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { BadgeCheck, Bot, Building2, ChevronRight, CircleCheck, LoaderCircle, Send } from "lucide-react";
+import {
+  Activity, BadgeCheck, Bot, Building2, ChartPie, ChevronRight, CircleCheck, Funnel, Gauge, LoaderCircle, MapPin, Send, Sparkles, Target, Trophy,
+} from "lucide-react";
+import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import type { Company, CompanyStatus } from "@/lib/leadFinder";
-import { ChartCard, ColumnChart, RankedBars, SegmentedBar } from "./DashboardCharts";
+import { AGENT_ACTIVE, type AgentRun } from "@/lib/leadFinderApi";
+import { AgentsPanel } from "./AgentsPanel";
+import { MODE_LABEL, runName } from "./agentRun";
+import { AreaChart, ChartCard, Donut, Funnel as FunnelChart, RankedBars, Sparkline } from "./DashboardCharts";
 
 const DAY = 86_400_000;
 const RANGES = [7, 14, 30];
@@ -11,9 +17,10 @@ const dayKey = (t: number) => new Date(t).toDateString();
 const dayLabel = (t: number) => new Date(t).toLocaleDateString([], { month: "short", day: "numeric" });
 
 type Counts = { all: number; working: number; waiting: number; ready: number; failed: number; verified: number; risky: number; sent: number };
+type Part = { label: string; value: number };
 
-/** Everything the charts show, for the companies added in the last `days` days */
-function useCharts(companies: Company[], days: number) {
+/** Everything the charts show, for the companies and agent runs started in the last `days` days */
+function useCharts(companies: Company[], runs: AgentRun[], days: number) {
   return useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -22,19 +29,40 @@ function useCharts(companies: Company[], days: number) {
     const inRange = companies.filter((c) => c.addedAt >= start);
     const people = inRange.flatMap((c) => c.contacts);
     const count = <T,>(xs: T[], key: (x: T) => string) => xs.reduce<Record<string, number>>((m, x) => ((m[key(x)] = (m[key(x)] ?? 0) + 1), m), {});
+    const daily = (m: Record<string, number>) => dates.map((d) => ({ label: dayLabel(d), value: m[dayKey(d)] ?? 0 }));
 
     const added = count(inRange, (c) => dayKey(c.addedAt));
     const sentTimes = companies.flatMap((c) => c.contacts).map((p) => (p.sentAt ? Date.parse(p.sentAt) : 0)).filter((t) => t >= start);
     const sent = count(sentTimes, dayKey);
+    const verified = inRange.reduce<Record<string, number>>((m, c) => {
+      const n = c.contacts.filter((p) => p.emailStatus === "valid").length;
+      if (n) m[dayKey(c.addedAt)] = (m[dayKey(c.addedAt)] ?? 0) + n;
+      return m;
+    }, {});
     const by = count(inRange, (c) => c.status);
     const cities = Object.entries(count(inRange, (c) => [c.city, c.state].filter(Boolean).join(", ") || "Unknown")).sort((a, b) => b[1] - a[1]);
     const noEmail = inRange.filter((c) => (c.status === "ready" || c.status === "approved") && !c.contacts.some((p) => p.email)).length;
 
+    const missions = runs.filter((r) => Date.parse(r.created_at) >= start);
+    const finding = missions.filter((r) => r.mode !== "bulk");
+    const finished = missions.filter((r) => r.status === "done" || r.status === "failed" || r.status === "stopped");
+    const sum = (xs: AgentRun[], k: "new" | "emails" | "sent") => xs.reduce((s, r) => s + (r.counts[k] ?? 0), 0);
+    const seen: Record<string, number> = {};
+    const top = [...missions]
+      .sort((a, b) => (b.counts.emails ?? 0) - (a.counts.emails ?? 0))
+      .slice(0, 5)
+      .map((r) => {
+        const base = `${runName(r)} · ${dayLabel(Date.parse(r.created_at))}`;
+        seen[base] = (seen[base] ?? 0) + 1;
+        return { label: seen[base] > 1 ? `${base} (${seen[base]})` : base, value: r.counts.emails ?? 0 };
+      });
+
     return {
       total: inRange.length,
       sentTotal: sentTimes.length,
-      added: dates.map((d) => ({ label: dayLabel(d), value: added[dayKey(d)] ?? 0 })),
-      sent: dates.map((d) => ({ label: dayLabel(d), value: sent[dayKey(d)] ?? 0 })),
+      added: daily(added),
+      sent: daily(sent),
+      verifiedDaily: daily(verified),
       status: [
         { label: "Waiting", value: by.queued ?? 0 },
         { label: "Finding details", value: by.enriching ?? 0 },
@@ -47,7 +75,7 @@ function useCharts(companies: Company[], days: number) {
         { label: "Risky (may bounce)", value: people.filter((p) => p.emailStatus === "catch_all").length },
         { label: "Not confirmed", value: people.filter((p) => p.email && p.emailStatus === "unknown").length },
         { label: "Invalid", value: people.filter((p) => p.emailStatus === "invalid").length },
-        { label: "Company with no email", value: noEmail },
+        { label: "No email found", value: noEmail },
       ],
       found: [
         { label: "ReachAgent", value: inRange.filter((c) => c.agentRunId).length },
@@ -57,65 +85,120 @@ function useCharts(companies: Company[], days: number) {
       ],
       cities: [...cities.slice(0, 5), ...(cities.length > 5 ? [["Other", cities.slice(5).reduce((s, [, v]) => s + v, 0)] as [string, number]] : [])]
         .map(([label, value]) => ({ label, value })),
+      agents: {
+        missions: missions.length,
+        modes: (["fast", "smart", "bulk"] as const).map((m) => ({ label: MODE_LABEL[m], value: missions.filter((r) => r.mode === m).length })),
+        success: finished.length ? Math.round((finished.filter((r) => r.status === "done").length / finished.length) * 100) : null,
+        avgCompanies: finding.length ? Math.round(sum(finding, "new") / finding.length) : 0,
+        avgEmails: missions.length ? Math.round(sum(missions, "emails") / missions.length) : 0,
+        pipeline: [
+          { label: "Companies found", value: sum(finding, "new") },
+          { label: "Emails found", value: sum(finding, "emails") },
+          { label: "Emails sent", value: sum(finding, "sent") },
+        ],
+        top,
+      },
     };
-  }, [companies, days]);
+  }, [companies, runs, days]);
 }
 
-const rowsOf = (xs: { label: string; value: number }[]): [string, number][] => xs.map((x) => [x.label, x.value]);
+const rowsOf = (xs: Part[]): [string, number][] => xs.map((x) => [x.label, x.value]);
 
-type Kpi = { label: string; value: number; note: string; icon: React.ReactNode; tone: "primary" | "info" | "warning" | "success" | "violet"; live?: boolean; onClick: () => void };
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+}
 
-/** The overview: headline numbers, then charts for the chosen period */
+type Kpi = {
+  label: string; value: number; note: string; icon: React.ReactNode; tone: "primary" | "info" | "warning" | "success" | "violet";
+  live?: boolean; spark?: number[]; slot?: number; onClick: () => void;
+};
+
+/** The overview: a headline, the user's agents, how they perform, then charts for the chosen period */
 export function Dashboard({
   companies,
   counts,
   onFilter,
   onAgent,
+  onOpenRun,
+  notify,
+  confirm,
 }: {
   companies: Company[];
   counts: Counts;
   onFilter: (s: "all" | CompanyStatus) => void;
+  /** Brief a new agent */
   onAgent: () => void;
+  onOpenRun: (runId: string) => void;
+  notify: (msg: string, isError?: boolean) => void;
+  confirm: (r: ConfirmRequest) => void;
 }) {
   const [days, setDays] = useState(14);
-  const ch = useCharts(companies, days);
-  const running = counts.working + counts.waiting;
+  const [runs, setRuns] = useState<AgentRun[]>([]);
+  const ch = useCharts(companies, runs, days);
+  // Agents on a mission now, plus the companies the enrichment loop is still looking into
+  const liveAgents = runs.filter((r) => AGENT_ACTIVE.includes(r.status)).length;
+  const enriching = counts.working + counts.waiting;
+  const inProgressNote = [
+    liveAgents ? `${liveAgents} agent${liveAgents > 1 ? "s" : ""} working` : "",
+    enriching ? `${enriching} compan${enriching > 1 ? "ies" : "y"} enriching` : "",
+  ].filter(Boolean).join(" · ") || "Nothing running";
+  const ag = ch.agents;
 
   const kpis: Kpi[] = [
-    { label: "Companies", value: counts.all, note: counts.failed ? `${counts.failed} couldn't finish` : "All you've found", icon: <Building2 size={18} />, tone: "primary", onClick: () => onFilter("all") },
-    { label: "In progress", value: running, note: running ? `${counts.working} running, ${counts.waiting} waiting` : "Nothing running", icon: <LoaderCircle size={18} className={counts.working ? "spin" : undefined} />, tone: "info", live: !!counts.working, onClick: () => onFilter("enriching") },
+    { label: "Companies", value: counts.all, note: counts.failed ? `${counts.failed} couldn't finish` : "All you've found", icon: <Building2 size={18} />, tone: "primary", spark: ch.added.map((p) => p.value), slot: 1, onClick: () => onFilter("all") },
+    { label: "In progress", value: liveAgents || enriching, note: inProgressNote, icon: <LoaderCircle size={18} className={liveAgents || counts.working ? "spin" : undefined} />, tone: "info", live: !!(liveAgents || counts.working), onClick: () => onFilter("enriching") },
     { label: "To review", value: counts.ready, note: counts.ready ? "Waiting for you" : "All reviewed", icon: <CircleCheck size={18} />, tone: "warning", onClick: () => onFilter("ready") },
-    { label: "Verified emails", value: counts.verified, note: counts.risky ? `${counts.risky} risky kept aside` : "No risky emails", icon: <BadgeCheck size={18} />, tone: "success", onClick: () => onFilter("ready") },
-    { label: "Emails sent", value: counts.sent, note: "From your mailbox", icon: <Send size={18} />, tone: "violet", onClick: () => onFilter("approved") },
+    { label: "Verified emails", value: counts.verified, note: counts.risky ? `${counts.risky} risky kept aside` : "No risky emails", icon: <BadgeCheck size={18} />, tone: "success", spark: ch.verifiedDaily.map((p) => p.value), slot: 3, onClick: () => onFilter("ready") },
+    { label: "Emails sent", value: counts.sent, note: "From your mailbox", icon: <Send size={18} />, tone: "violet", spark: ch.sent.map((p) => p.value), slot: 2, onClick: () => onFilter("approved") },
+  ];
+
+  const tiles = [
+    { label: "Missions", value: String(ag.missions), note: `in the last ${days} days`, icon: <Target size={17} /> },
+    { label: "Success rate", value: ag.success === null ? "–" : `${ag.success}%`, note: "finished without stopping or failing", icon: <Gauge size={17} /> },
+    { label: "Companies per mission", value: String(ag.avgCompanies), note: "on average", icon: <Building2 size={17} /> },
+    { label: "Emails per mission", value: String(ag.avgEmails), note: "on average", icon: <Sparkles size={17} /> },
   ];
 
   return (
-    <div className="dash">
-      <header className="dash-head">
-        <div>
-          <h2>Overview</h2>
+    <div className="dash dash2">
+      <header className="dash2-hero">
+        <div className="dash2-hero-text">
+          <span className="dash2-eyebrow"><Sparkles size={14} aria-hidden="true" /> {greeting()}</span>
+          <h2>Your lead command center</h2>
           <p>
             {counts.ready
-              ? `${counts.ready} compan${counts.ready === 1 ? "y is" : "ies are"} waiting for your review.`
-              : running
-                ? `${running} compan${running === 1 ? "y is" : "ies are"} being looked into right now.`
-                : "Run the agent to find new leads."}
+              ? `${counts.ready.toLocaleString()} compan${counts.ready === 1 ? "y is" : "ies are"} waiting for your review.`
+              : liveAgents
+                ? `${liveAgents} agent${liveAgents === 1 ? " is" : "s are"} working right now.`
+                : enriching
+                  ? `${enriching} compan${enriching === 1 ? "y is" : "ies are"} being looked into right now.`
+                  : "Start an agent to find new leads."}
+            {" "}{ch.total.toLocaleString()} found and {ch.sentTotal.toLocaleString()} emailed in the last {days} days.
           </p>
         </div>
-        <div className="dash-actions">
-          <button type="button" className="btn btn-primary dash-run" onClick={onAgent}><Bot size={17} aria-hidden="true" /> Run agent</button>
+        <div className="dash2-hero-side">
+          <span className="dash2-range-label">Period</span>
+          <div className="seg-control" role="radiogroup" aria-label="Period">
+            {RANGES.map((n) => (
+              <button key={n} type="button" role="radio" aria-checked={days === n} className={days === n ? "on" : ""} onClick={() => setDays(n)}>
+                {n}d
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
       <ul className="kpi-grid">
         {kpis.map((k) => (
           <li key={k.label}>
-            <button type="button" className={`kpi kpi--${k.tone}`} onClick={k.onClick}>
+            <button type="button" className={`kpi kpi2 kpi--${k.tone}`} onClick={k.onClick}>
               <span className="kpi-top">
                 <span className="kpi-label">{k.label}</span>
                 <span className="kpi-icon" aria-hidden="true">{k.icon}</span>
               </span>
               <strong className="kpi-value">{k.value.toLocaleString()}</strong>
+              {k.spark && <Sparkline values={k.spark} slot={k.slot} />}
               <span className="kpi-note">
                 {k.live && <i className="kpi-dot" aria-hidden="true" />}
                 {k.note}
@@ -126,39 +209,68 @@ export function Dashboard({
         ))}
       </ul>
 
-      <section className="dash-section" aria-label="Charts">
-        <div className="dash-bar">
+      <AgentsPanel notify={notify} confirm={confirm} onOpen={onOpenRun} onNew={onAgent} onRuns={setRuns} />
+
+      <section className="dash-section" aria-label="Agent performance">
+        <div className="dash2-section-head">
+          <span className="dash2-section-icon" aria-hidden="true"><Bot size={18} /></span>
+          <div>
+            <h3>Agent performance</h3>
+            <p>How your missions did in the last {days} days</p>
+          </div>
+        </div>
+
+        <ul className="dash2-tiles">
+          {tiles.map((t) => (
+            <li key={t.label} className="dash2-tile">
+              <span className="dash2-tile-icon" aria-hidden="true">{t.icon}</span>
+              <span className="dash2-tile-label">{t.label}</span>
+              <strong>{t.value}</strong>
+              <span className="dash2-tile-note">{t.note}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="dash2-grid-3">
+          <ChartCard title="Missions by type" sub="Which kind of agent you run" icon={<ChartPie size={16} />} rows={rowsOf(ag.modes)}>
+            <Donut parts={ag.modes} unit="missions" centerLabel="missions" />
+          </ChartCard>
+          <ChartCard title="Agent pipeline" sub="Found, then emails, then sent (bulk sends left out)" icon={<Funnel size={16} />} rows={rowsOf(ag.pipeline)}>
+            <FunnelChart steps={ag.pipeline} />
+          </ChartCard>
+          <ChartCard title="Top missions" sub="By emails found" icon={<Trophy size={16} />} rows={rowsOf(ag.top)}>
+            <RankedBars items={ag.top} unit="emails" />
+          </ChartCard>
+        </div>
+      </section>
+
+      <section className="dash-section" aria-label="Activity">
+        <div className="dash2-section-head">
+          <span className="dash2-section-icon" aria-hidden="true"><Activity size={18} /></span>
           <div>
             <h3>Activity</h3>
-            <p>{ch.total} compan{ch.total === 1 ? "y" : "ies"} added and {ch.sentTotal} email{ch.sentTotal === 1 ? "" : "s"} sent in the last {days} days</p>
-          </div>
-          <div className="seg-control" role="radiogroup" aria-label="Period">
-            {RANGES.map((n) => (
-              <button key={n} type="button" role="radio" aria-checked={days === n} className={days === n ? "on" : ""} onClick={() => setDays(n)}>
-                {n}d
-              </button>
-            ))}
+            <p>{ch.total.toLocaleString()} compan{ch.total === 1 ? "y" : "ies"} added and {ch.sentTotal.toLocaleString()} email{ch.sentTotal === 1 ? "" : "s"} sent in the last {days} days</p>
           </div>
         </div>
 
         <div className="lf-dash-grid">
-          <ChartCard title="Companies added" sub="Per day" rows={rowsOf(ch.added)}>
-            <ColumnChart points={ch.added} unit="companies" />
+          <ChartCard title="Companies added" sub="Per day" icon={<Building2 size={16} />} rows={rowsOf(ch.added)}>
+            <AreaChart points={ch.added} unit="companies" slot={1} />
           </ChartCard>
-          <ChartCard title="Emails sent" sub="Per day, from your mailbox (test emails not counted)" rows={rowsOf(ch.sent)}>
-            <ColumnChart points={ch.sent} unit="emails" />
+          <ChartCard title="Emails sent" sub="Per day, from your mailbox (test emails not counted)" icon={<Send size={16} />} rows={rowsOf(ch.sent)}>
+            <AreaChart points={ch.sent} unit="emails" slot={2} />
           </ChartCard>
-          <ChartCard title="Where companies are" sub="Each company's current step" rows={rowsOf(ch.status)}>
-            <SegmentedBar parts={ch.status} />
+          <ChartCard title="Where companies are" sub="Each company's current step" icon={<ChartPie size={16} />} rows={rowsOf(ch.status)}>
+            <Donut parts={ch.status} unit="companies" centerLabel="companies" />
           </ChartCard>
-          <ChartCard title="Email quality" sub="How sure we are each email exists" rows={rowsOf(ch.quality)}>
-            <RankedBars items={ch.quality} unit="emails" />
+          <ChartCard title="Email quality" sub="How sure we are each email exists" icon={<BadgeCheck size={16} />} rows={rowsOf(ch.quality)}>
+            <Donut parts={ch.quality} unit="emails" centerLabel="checked" />
           </ChartCard>
-          <ChartCard title="How companies were found" rows={rowsOf(ch.found)}>
+          <ChartCard title="How companies were found" icon={<Target size={16} />} rows={rowsOf(ch.found)}>
             <RankedBars items={ch.found} unit="companies" />
           </ChartCard>
-          <ChartCard title="Top cities" rows={rowsOf(ch.cities)}>
-            <RankedBars items={ch.cities} unit="companies" />
+          <ChartCard title="Top cities" icon={<MapPin size={16} />} rows={rowsOf(ch.cities)}>
+            <RankedBars items={ch.cities} unit="companies" slot={3} />
           </ChartCard>
         </div>
       </section>

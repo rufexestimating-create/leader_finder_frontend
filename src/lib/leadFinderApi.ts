@@ -156,7 +156,13 @@ export interface AgentRun {
   id: string;
   status: AgentStatus;
   mode: "fast" | "smart" | "bulk";
-  filters: { country: string; state: string; city: string; company_type: string; limit: number; mode: string; subject?: string; recipients?: unknown[] };
+  filters: {
+    country: string; state: string; city: string; company_type: string; limit: number; mode: string; subject?: string; message?: string; recipients?: unknown[];
+    /** "directory": the companies come from a directory link the user pasted, not a city search */
+    source?: "maps" | "directory"; directory_url?: string;
+  };
+  /** Queued runs only: 1 when it is next to start finding companies */
+  queue_position?: number;
   steps: { id: string; label: string; state: "pending" | "running" | "done" | "failed"; note: string }[];
   counts: {
     found?: number; new?: number; read?: number; emails?: number; people?: number; sent?: number; skipped?: number; failed?: number;

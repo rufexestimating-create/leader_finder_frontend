@@ -7,6 +7,7 @@ import { Select } from "./Dropdown";
 import { COMPANY_STATUS, COMPANY_TYPES, type Company, type CompanyStatus, EMAIL_STATUS, type EmailStatus, SOURCE_LABEL, STEPS, describeType } from "@/lib/leadFinder";
 import { type AgentRun, call, toAgentRun } from "@/lib/leadFinderApi";
 import { downloadCsv } from "@/lib/exportCsv";
+import { siteOf } from "./agentRun";
 
 /** Best email found at a company, best first */
 const EMAIL_RANK: EmailStatus[] = ["valid", "catch_all", "unknown", "none", "invalid"];
@@ -51,7 +52,9 @@ const typeName = (id: string) => COMPANY_TYPES.find((t) => t.id === id)?.label ?
 export const runTitle = (r: AgentRun) =>
   r.mode === "bulk"
     ? `Bulk send: ${r.counts.total ?? r.filters.recipients?.length ?? 0} addresses`
-    : `${typeName(r.filters.company_type)}s in ${[r.filters.city, r.filters.state].filter(Boolean).join(", ")}`;
+    : r.filters.source === "directory"
+      ? `${typeName(r.filters.company_type)}s from ${siteOf(r.filters.directory_url)}`
+      : `${typeName(r.filters.company_type)}s in ${[r.filters.city, r.filters.state].filter(Boolean).join(", ")}`;
 
 export function Results({
   companies,

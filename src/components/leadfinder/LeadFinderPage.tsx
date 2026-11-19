@@ -53,6 +53,8 @@ export function LeadFinderPage({
   const [status, setStatus] = useState<"all" | CompanyStatus>("all");
   const [resultsRun, setResultsRun] = useState("all");
   const [agentRun, setAgentRun] = useState<string | null>(null);
+  // "New agent" opens the brief straight away; the nonce starts a fresh one each time
+  const [agentBrief, setAgentBrief] = useState({ open: false, nonce: 0 });
   const [openId, setOpenId] = useState<string | null>(null);
   // A click in the top nav closes any open company review
   const [seenTick, setSeenTick] = useState(navTick);
@@ -209,6 +211,17 @@ export function LeadFinderPage({
     notify("Settings saved. They apply to the next companies looked into.");
   };
 
+  const openRun = (id: string) => {
+    setAgentRun(id);
+    setAgentBrief((b) => ({ open: false, nonce: b.nonce }));
+    show("agent");
+  };
+  const newAgent = () => {
+    setAgentRun(null);
+    setAgentBrief((b) => ({ open: true, nonce: b.nonce + 1 }));
+    show("agent");
+  };
+
   const openTools = () => {
     setSettingsSection("advanced");
     show("settings");
@@ -262,19 +275,24 @@ export function LeadFinderPage({
         <>
           <div key={`${view}-${navTick}`} className="lf-view">
           {view === "dashboard" && (
-            <Dashboard companies={companies} counts={counts} onFilter={filterBy} onAgent={() => show("agent")} />
+            <Dashboard companies={companies} counts={counts} onFilter={filterBy} onAgent={newAgent} onOpenRun={openRun}
+              notify={notify} confirm={confirm} />
           )}
           {view === "agent" && (
-            <AgentPage key={agentRun ?? "home"} mailbox={mailbox} notify={notify} confirm={confirm} openRunId={agentRun}
+            <AgentPage key={agentRun ?? `home-${agentBrief.nonce}`} mailbox={mailbox} notify={notify} confirm={confirm} openRunId={agentRun}
+              startWithBrief={agentBrief.open}
               bulkDefaults={{ subject: settings.agentSubject, message: settings.agentMessage }}
               onOpenCompany={async (id) => { await load(); setOpenId(id); }}
               onSeeResults={(id) => { setResultsRun(id); setStatus("all"); setAgentRun(null); show("results"); }}
-              onClosed={() => setAgentRun(null)}
+              onClosed={() => { setAgentRun(null); setAgentBrief((b) => ({ open: false, nonce: b.nonce + 1 })); }}
+              onNewAgent={newAgent}
+              onOpenRun={openRun}
+              onDashboard={() => show("dashboard")}
               onOpenMailbox={() => { setSettingsSection("mailbox"); show("settings"); }} />
           )}
           {view === "results" && (
             <Results companies={sorted} now={now} status={status} onStatus={setStatus} run={resultsRun} onRun={setResultsRun} onOpen={setOpenId}
-              onOpenRun={(id) => { setAgentRun(id); show("agent"); }} onAgent={() => { setAgentRun(null); show("agent"); }} />
+              onOpenRun={openRun} onAgent={newAgent} />
           )}
           {view === "settings" && (
             <FinderSettingsPanel
