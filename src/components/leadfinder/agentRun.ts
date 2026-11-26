@@ -8,8 +8,8 @@ export const STATUS: Record<AgentRun["status"], { label: string; tone: Tone }> =
   running: { label: "Scanning", tone: "live" },
   enriching: { label: "Enriching", tone: "live" },
   sending: { label: "Sending", tone: "live" },
-  waiting: { label: "Paused till tomorrow", tone: "warn" },
-  done: { label: "Mission complete", tone: "ok" },
+  waiting: { label: "Paused until tomorrow", tone: "warn" },
+  done: { label: "Completed", tone: "ok" },
   stopped: { label: "Stopped", tone: "idle" },
   failed: { label: "Failed", tone: "bad" },
 };

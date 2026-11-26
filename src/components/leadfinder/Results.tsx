@@ -114,28 +114,29 @@ export function Results({
 
   return (
     <div className="dash">
-      <header className="dash-head">
-        <div>
-          <h2>Results</h2>
-          <p>Every company the agent found, how it was found, and who was emailed.</p>
+      <header className="dash-head res-head">
+        <div className="res-title">
+          <span className="sp-eyebrow"><b>[01]</b> Results</span>
+          <h2>Everything your agents found</h2>
+          <p>Each company, how it was found, and who was emailed.</p>
+        </div>
+        <div className="seg-control res-tabs" role="tablist" aria-label="Results">
+          <button type="button" role="tab" aria-selected={tab === "companies"} className={tab === "companies" ? "on" : ""} onClick={() => setTab("companies")}>
+            Companies <span className="res-count">{companies.length}</span>
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "runs"} className={tab === "runs" ? "on" : ""} onClick={() => setTab("runs")}>
+            Agent runs <span className="res-count">{runs?.length ?? 0}</span>
+          </button>
         </div>
         <div className="dash-actions">
           <button type="button" className="btn btn-secondary dash-run" disabled={!shown.length} onClick={exportShown}
             title="Download the companies shown below as a spreadsheet">
             <Download size={16} aria-hidden="true" /> Download CSV{filtered ? ` (${shown.length})` : ""}
           </button>
-          <button type="button" className="btn btn-primary dash-run" onClick={onAgent}><Bot size={16} aria-hidden="true" /> Run agent</button>
+          <button type="button" className="btn btn-primary dash-run" onClick={onAgent} data-magnetic><Bot size={16} aria-hidden="true" /> Run agent</button>
         </div>
       </header>
 
-      <div className="seg-control res-tabs" role="tablist" aria-label="Results">
-        <button type="button" role="tab" aria-selected={tab === "companies"} className={tab === "companies" ? "on" : ""} onClick={() => setTab("companies")}>
-          Companies <span className="res-count">{companies.length}</span>
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "runs"} className={tab === "runs" ? "on" : ""} onClick={() => setTab("runs")}>
-          Agent runs <span className="res-count">{runs?.length ?? 0}</span>
-        </button>
-      </div>
 
       {tab === "runs" ? (
         <div className="card card-flush">

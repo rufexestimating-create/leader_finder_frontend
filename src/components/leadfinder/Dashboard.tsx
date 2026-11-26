@@ -2,11 +2,12 @@
 
 import React, { useMemo, useState } from "react";
 import {
-  Activity, BadgeCheck, Bot, Building2, ChartPie, ChevronRight, CircleCheck, Funnel, Gauge, LoaderCircle, MapPin, Send, Sparkles, Target, Trophy,
+  ArrowUpRight, BadgeCheck, Building2, ChartPie, ChevronRight, CircleCheck, Funnel, Gauge, LoaderCircle, MapPin, Send, Sparkles, Target, Trophy,
 } from "lucide-react";
 import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import type { Company, CompanyStatus } from "@/lib/leadFinder";
 import { AGENT_ACTIVE, type AgentRun } from "@/lib/leadFinderApi";
+import { CountUp, SplitWords } from "@/components/motion";
 import { AgentsPanel } from "./AgentsPanel";
 import { MODE_LABEL, runName } from "./agentRun";
 import { AreaChart, ChartCard, Donut, Funnel as FunnelChart, RankedBars, Sparkline } from "./DashboardCharts";
@@ -134,6 +135,7 @@ export function Dashboard({
   confirm: (r: ConfirmRequest) => void;
 }) {
   const [days, setDays] = useState(14);
+  const [tab, setTab] = useState<"agents" | "leads">("agents");
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const ch = useCharts(companies, runs, days);
   // Agents on a mission now, plus the companies the enrichment loop is still looking into
@@ -144,6 +146,15 @@ export function Dashboard({
     enriching ? `${enriching} compan${enriching > 1 ? "ies" : "y"} enriching` : "",
   ].filter(Boolean).join(" · ") || "Nothing running";
   const ag = ch.agents;
+  // Hairlines that follow the pointer across the header, like a drafting crosshair
+  const crosshair = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.pointerType !== "mouse") return;
+    const el = e.currentTarget;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--x", `${e.clientX - r.left}px`);
+    el.style.setProperty("--y", `${e.clientY - r.top}px`);
+    el.classList.add("xh-on");
+  };
 
   const kpis: Kpi[] = [
     { label: "Companies", value: counts.all, note: counts.failed ? `${counts.failed} couldn't finish` : "All you've found", icon: <Building2 size={18} />, tone: "primary", spark: ch.added.map((p) => p.value), slot: 1, onClick: () => onFilter("all") },
@@ -154,38 +165,38 @@ export function Dashboard({
   ];
 
   const tiles = [
-    { label: "Missions", value: String(ag.missions), note: `in the last ${days} days`, icon: <Target size={17} /> },
-    { label: "Success rate", value: ag.success === null ? "–" : `${ag.success}%`, note: "finished without stopping or failing", icon: <Gauge size={17} /> },
-    { label: "Companies per mission", value: String(ag.avgCompanies), note: "on average", icon: <Building2 size={17} /> },
-    { label: "Emails per mission", value: String(ag.avgEmails), note: "on average", icon: <Sparkles size={17} /> },
+    { label: "Missions", value: <CountUp value={ag.missions} />, note: `in the last ${days} days`, icon: <Target size={17} /> },
+    { label: "Success rate", value: ag.success === null ? "–" : <CountUp value={ag.success} suffix="%" />, note: "finished without stopping or failing", icon: <Gauge size={17} /> },
+    { label: "Companies per mission", value: <CountUp value={ag.avgCompanies} />, note: "on average", icon: <Building2 size={17} /> },
+    { label: "Emails per mission", value: <CountUp value={ag.avgEmails} />, note: "on average", icon: <Sparkles size={17} /> },
   ];
 
   return (
     <div className="dash dash2">
-      <header className="dash2-hero">
+      <header className="dash2-hero" onPointerMove={crosshair} onPointerLeave={(e) => e.currentTarget.classList.remove("xh-on")}>
+        <span className="xh" aria-hidden="true"><i className="xh-h" /><i className="xh-v" /></span>
         <div className="dash2-hero-text">
-          <span className="dash2-eyebrow"><Sparkles size={14} aria-hidden="true" /> {greeting()}</span>
-          <h2>Your lead command center</h2>
+          <span className="dash2-eyebrow"><b>[01]</b> {greeting()}</span>
+          <h2><SplitWords text="Leads on autopilot" /><span className="sw"><span className="sw-i st-dot" style={{ animationDelay: "300ms" }}>.</span></span></h2>
           <p>
-            {counts.ready
-              ? `${counts.ready.toLocaleString()} compan${counts.ready === 1 ? "y is" : "ies are"} waiting for your review.`
-              : liveAgents
-                ? `${liveAgents} agent${liveAgents === 1 ? " is" : "s are"} working right now.`
-                : enriching
-                  ? `${enriching} compan${enriching === 1 ? "y is" : "ies are"} being looked into right now.`
-                  : "Start an agent to find new leads."}
-            {" "}{ch.total.toLocaleString()} found and {ch.sentTotal.toLocaleString()} emailed in the last {days} days.
+            {liveAgents ? `${liveAgents} agent${liveAgents === 1 ? " is" : "s are"} working right now. ` : enriching ? `${enriching} compan${enriching === 1 ? "y is" : "ies are"} being looked into right now. ` : ""}
+            {ch.total.toLocaleString()} found and {ch.sentTotal.toLocaleString()} emailed in the last {days} days.
           </p>
         </div>
-        <div className="dash2-hero-side">
-          <span className="dash2-range-label">Period</span>
-          <div className="seg-control" role="radiogroup" aria-label="Period">
-            {RANGES.map((n) => (
-              <button key={n} type="button" role="radio" aria-checked={days === n} className={days === n ? "on" : ""} onClick={() => setDays(n)}>
-                {n}d
-              </button>
-            ))}
-          </div>
+        <div className="dh-focus">
+          {counts.ready ? (
+            <button type="button" className="dh-focus-btn" onClick={() => onFilter("ready")}>
+              <strong><CountUp value={counts.ready} /></strong>
+              <span className="dh-focus-label">compan{counts.ready === 1 ? "y" : "ies"} waiting for your review</span>
+              <span className="dh-focus-go">Review now <ArrowUpRight size={15} aria-hidden="true" /></span>
+            </button>
+          ) : (
+            <button type="button" className="dh-focus-btn" onClick={onAgent}>
+              <strong><CountUp value={counts.sent} /></strong>
+              <span className="dh-focus-label">email{counts.sent === 1 ? "" : "s"} sent so far. Everything is reviewed.</span>
+              <span className="dh-focus-go">Start an agent <ArrowUpRight size={15} aria-hidden="true" /></span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -197,7 +208,7 @@ export function Dashboard({
                 <span className="kpi-label">{k.label}</span>
                 <span className="kpi-icon" aria-hidden="true">{k.icon}</span>
               </span>
-              <strong className="kpi-value">{k.value.toLocaleString()}</strong>
+              <strong className="kpi-value"><CountUp value={k.value} /></strong>
               {k.spark && <Sparkline values={k.spark} slot={k.slot} />}
               <span className="kpi-note">
                 {k.live && <i className="kpi-dot" aria-hidden="true" />}
@@ -211,15 +222,32 @@ export function Dashboard({
 
       <AgentsPanel notify={notify} confirm={confirm} onOpen={onOpenRun} onNew={onAgent} onRuns={setRuns} />
 
-      <section className="dash-section" aria-label="Agent performance">
-        <div className="dash2-section-head">
-          <span className="dash2-section-icon" aria-hidden="true"><Bot size={18} /></span>
+      <section className="dash-section ins" aria-label="Insights">
+        <div className="ins-head">
           <div>
-            <h3>Agent performance</h3>
-            <p>How your missions did in the last {days} days</p>
+            <span className="sp-eyebrow"><b>[03]</b> Insights</span>
+            <h3>{tab === "agents" ? "How your agents did" : "Your leads and emails"}</h3>
+            <p>{tab === "agents"
+              ? `Missions in the last ${days} days`
+              : `${ch.total.toLocaleString()} compan${ch.total === 1 ? "y" : "ies"} added and ${ch.sentTotal.toLocaleString()} email${ch.sentTotal === 1 ? "" : "s"} sent in the last ${days} days`}</p>
+          </div>
+          <div className="ins-controls">
+            <div className="seg-control ins-period" role="radiogroup" aria-label="Period">
+              {RANGES.map((n) => (
+                <button key={n} type="button" role="radio" aria-checked={days === n} className={days === n ? "on" : ""} onClick={() => setDays(n)}>
+                  {n}d
+                </button>
+              ))}
+            </div>
+            <div className="ins-tabs" role="tablist" aria-label="Insights">
+              <button type="button" role="tab" aria-selected={tab === "agents"} className={tab === "agents" ? "on" : ""} onClick={() => setTab("agents")}>Agents</button>
+              <button type="button" role="tab" aria-selected={tab === "leads"} className={tab === "leads" ? "on" : ""} onClick={() => setTab("leads")}>Leads &amp; emails</button>
+            </div>
           </div>
         </div>
 
+        {tab === "agents" ? (
+          <div className="ins-body" key="agents">
         <ul className="dash2-tiles">
           {tiles.map((t) => (
             <li key={t.label} className="dash2-tile">
@@ -242,17 +270,9 @@ export function Dashboard({
             <RankedBars items={ag.top} unit="emails" />
           </ChartCard>
         </div>
-      </section>
-
-      <section className="dash-section" aria-label="Activity">
-        <div className="dash2-section-head">
-          <span className="dash2-section-icon" aria-hidden="true"><Activity size={18} /></span>
-          <div>
-            <h3>Activity</h3>
-            <p>{ch.total.toLocaleString()} compan{ch.total === 1 ? "y" : "ies"} added and {ch.sentTotal.toLocaleString()} email{ch.sentTotal === 1 ? "" : "s"} sent in the last {days} days</p>
           </div>
-        </div>
-
+        ) : (
+          <div className="ins-body" key="leads">
         <div className="lf-dash-grid">
           <ChartCard title="Companies added" sub="Per day" icon={<Building2 size={16} />} rows={rowsOf(ch.added)}>
             <AreaChart points={ch.added} unit="companies" slot={1} />
@@ -273,6 +293,8 @@ export function Dashboard({
             <RankedBars items={ch.cities} unit="companies" slot={3} />
           </ChartCard>
         </div>
+          </div>
+        )}
       </section>
     </div>
   );

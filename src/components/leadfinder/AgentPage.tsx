@@ -2,13 +2,14 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ArrowLeft, ArrowRight, Bot, Building2, CircleAlert, CircleCheck, FileUp, FlaskConical, Globe, LayoutDashboard, Link2, ListPlus, LoaderCircle, Mail, Plus, Radar, RotateCw,
+  ArrowLeft, ArrowRight, Bot, Building2, Check, CircleAlert, CircleCheck, FileUp, FlaskConical, Globe, Link2, ListPlus, LoaderCircle, Mail, Plus, Radar, RotateCw,
   Send, ShieldCheck, Sparkles, Square, Terminal, Zap,
 } from "lucide-react";
+import { CountUp, SplitWords } from "@/components/motion";
 import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import { COMPANY_TYPES, COUNTRIES, US_STATES } from "@/lib/leadFinder";
 import { AGENT_ACTIVE, type AgentRun, type Mailbox, call, send, toAgentRun } from "@/lib/leadFinderApi";
-import { MODE_LABEL, STATUS, canResume, progressOf, runName, siteOf, statusLabel, typeLabel } from "./agentRun";
+import { MODE_LABEL, STATUS, canResume, place, progressOf, runName, siteOf, statusLabel, typeLabel } from "./agentRun";
 import { AgentsPanel } from "./AgentsPanel";
 import { Combobox, Select } from "./Dropdown";
 
@@ -22,6 +23,37 @@ const SHORT: Record<string, string> = {
   find: "Find companies", save: "Save companies", read: "Read websites", emails: "Find emails", enrich: "Enrich owners", send: "Send emails", check: "Check emails",
 };
 type Recipient = { email: string; name: string; company: string };
+const MODES: {
+  id: "fast" | "smart" | "bulk"; name: string; tag: string; icon: React.ReactNode; desc: string; best: string; tools: string[]; flow: { t: string; d: string }[];
+}[] = [
+  { id: "fast", name: "Without enrichment", tag: "Free", icon: <Zap size={18} />,
+    desc: "Finds companies, reads their websites for emails, and sends everyone the same message.",
+    best: "reaching many companies fast", tools: ["Google Maps", "BBB", "OpenStreetMap", "Directories"],
+    flow: [
+      { t: "Find companies", d: "Searches Google Maps, BBB and OpenStreetMap, or your directory link." },
+      { t: "Read their websites", d: "Opens each site's team, about and contact pages for emails." },
+      { t: "Check the emails", d: "Asks each mail server so messages don't bounce." },
+      { t: "Send your message", d: "Same email for everyone, within your daily limit." },
+    ] },
+  { id: "smart", name: "With enrichment", tag: "Uses credits", icon: <Sparkles size={18} />,
+    desc: "Finds the owner's own email, checks it, and writes each person a personal opening line.",
+    best: "fewer, better leads", tools: ["Hunter", "Reoon", "AI writer"],
+    flow: [
+      { t: "Find companies", d: "Searches Google Maps and directories in your area." },
+      { t: "Find the owner", d: "Hunter finds the decision maker and their own email." },
+      { t: "Check the email", d: "Reoon confirms it really exists." },
+      { t: "Write a personal line", d: "AI writes one opening sentence for each person." },
+      { t: "Send your message", d: "Your email with their line, within your daily limit." },
+    ] },
+  { id: "bulk", name: "Bulk send", tag: "Your list", icon: <ListPlus size={18} />,
+    desc: "Paste emails or upload a CSV. Every address is checked, then your message goes out.",
+    best: "contacts you already have", tools: ["Your list", "Email check"],
+    flow: [
+      { t: "Read your list", d: "Pasted emails or a CSV, duplicates removed." },
+      { t: "Check every address", d: "Bad and risky emails are taken out." },
+      { t: "Send your message", d: "One by one, within your daily limit." },
+    ] },
+];
 
 /** A pasted list or a CSV file: one person per line, "email", "email, name" or "email, name, company" in any order
  * (the email is whichever cell has an @). A header line with "email" in it is skipped. */
@@ -75,9 +107,12 @@ export function AgentPage({
   onDashboard,
   onOpenMailbox,
   bulkDefaults,
+  smartDefaults,
 }: {
-  /** Subject and message the message pages start from (the "without enrichment" message in Settings) */
+  /** Saved subject and message offered on the message step: without enrichment and bulk send */
   bulkDefaults: { subject: string; message: string };
+  /** Saved subject and message offered with enrichment ({{personal_line}} is written per person) */
+  smartDefaults: { subject: string; message: string };
   mailbox: Mailbox | null;
   notify: (msg: string, isError?: boolean) => void;
   confirm: (r: ConfirmRequest) => void;
@@ -105,8 +140,8 @@ export function AgentPage({
   const recipients = form.mode === "bulk" ? parseRecipients(form.list) : [];
   const [starting, setStarting] = useState(false);
   const [showForm, setShowForm] = useState(startWithBrief);
-  // Without enrichment the brief has a second page: the message this agent sends
-  const [page, setPage] = useState<"brief" | "message">("brief");
+  // The brief is three steps: how it works, where to look (or the list), what it says
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
   const us = form.country === "United States";
   const testMode = mailbox?.connected && mailbox.test_mode !== false;
@@ -130,30 +165,38 @@ export function AgentPage({
     return () => clearInterval(t);
   }, [run, active, loadRun]);
 
-  const start = async () => {
+  /** What is still missing before moving past this step, or null */
+  const missing = (upTo: 1 | 2 | 3): string | null => {
     const bulk = form.mode === "bulk";
-    const fast = form.mode === "fast";
-    if (bulk && !recipients.length) return notify("Paste at least one email, or upload a CSV.", true);
-    if (bulk && recipients.length > 1000) return notify("At most 1,000 emails in one run.", true);
     const directory = !bulk && form.source === "directory";
-    if (directory && !form.directory_url.trim()) return notify("Paste the directory's link first.", true);
-    if (!bulk && !directory && !form.city.trim()) return notify("Type a city first.", true);
-    if (fast && page === "brief") {
-      // Next: the message page, starting from the saved message the first time
-      setForm((f) => ({ ...f, subject: f.subject || bulkDefaults.subject, message: f.message || bulkDefaults.message }));
-      setPage("message");
-      return;
+    if (upTo >= 2) {
+      if (bulk && !recipients.length) return "Paste at least one email, or upload a CSV.";
+      if (bulk && recipients.length > 1000) return "At most 1,000 emails in one run.";
+      if (directory && !form.directory_url.trim()) return "Paste the directory's link first.";
+      if (!bulk && !directory && !form.city.trim()) return "Type a city first.";
     }
-    if ((bulk || fast) && (!form.subject.trim() || !form.message.trim())) return notify("Write a subject and a message.", true);
+    if (upTo >= 3 && (!form.subject.trim() || !form.message.trim())) return "Write a subject and a message.";
+    return null;
+  };
+  const goTo = (n: 1 | 2 | 3) => {
+    const gap = n > 2 ? missing(2) : null;
+    if (gap) return notify(gap, true);
+    setStep(n);
+  };
+
+  const start = async () => {
+    if (step < 3) return goTo((step + 1) as 2 | 3);
+    const bulk = form.mode === "bulk";
+    const directory = !bulk && form.source === "directory";
+    const gap = missing(3);
+    if (gap) return notify(gap, true);
     setStarting(true);
     const target = directory
       ? { source: "directory", directory_url: form.directory_url.trim(), country: "United States", company_type: form.company_type, limit: form.limit }
       : { source: "maps", country: form.country, state: us ? form.state : "", city: form.city, company_type: form.company_type, limit: form.limit };
     const body = bulk
       ? { mode: "bulk", recipients, subject: form.subject, message: form.message }
-      : fast
-        ? { mode: "fast", ...target, subject: form.subject, message: form.message }
-        : { mode: form.mode, ...target };
+      : { mode: form.mode, ...target, subject: form.subject, message: form.message };
     const res = await call<Record<string, unknown>>("/agent/runs", send("POST", body));
     setStarting(false);
     if (res.error || !res.data) return notify(res.error ?? "The agent couldn't start.", true);
@@ -230,63 +273,102 @@ export function AgentPage({
       : [["Found", c.found], ["New companies", c.new], ["Websites read", c.read], ["Emails found", c.emails], ["Sent", c.sent]];
     const log = [...(c.log ?? [])].reverse().slice(0, 40);
 
+    const title = bulk ? "Your own list" : runName(run);
+    const where = bulk
+      ? `${c.total ?? run.filters.recipients?.length ?? 0} addresses · ${run.filters.subject ?? ""}`
+      : `${run.filters.source === "directory" ? place(run.filters) : [run.filters.city, run.filters.state, run.filters.country].filter(Boolean).join(", ")} · up to ${run.filters.limit} companies`
+        + (run.mode === "fast" && run.filters.subject ? ` · “${run.filters.subject.replace(/\{\{\s*(\w+)\s*\}\}/g, "[$1]")}”` : "");
+    const bigNote = active ? headline
+      : run.status === "done" ? headline
+      : run.status === "failed" ? "Couldn't finish"
+      : run.status === "stopped" ? "Stopped by you"
+      : st.label;
+    const notice = run.status === "failed"
+      ? { tone: "bad", title: "The agent hit a problem", body: run.error ?? "Something went wrong on this step." }
+      : run.status === "stopped"
+        ? { tone: "idle", title: "You stopped this agent", body: "Everything it found so far is saved." }
+        : run.status === "waiting"
+          ? { tone: "warn", title: "Paused until tomorrow", body: "Today's sending limit is reached. It carries on by itself tomorrow." }
+          : null;
+
     return (
-      <section className="ag">
-        <div className="ag-console">
-          <div className="ag-hero">
-            <Core state={st.tone === "live" ? "live" : st.tone} progress={progress} />
-            <div className="ag-hero-text">
-              <span className="ag-eyebrow">
-                <i className={`ag-dot is-${st.tone}`} aria-hidden="true" /> {statusLabel(run)}
-                <span className="ag-sep">/</span> {MODE_LABEL[run.mode]}
-                {testMode && <><span className="ag-sep">/</span><FlaskConical size={13} aria-hidden="true" /> Test mode</>}
-              </span>
-              <h2 className="ag-title" aria-live="polite">{headline}{active && <span className="ag-caret" aria-hidden="true" />}</h2>
-              <p className="ag-sub">
-                {bulk
-                  ? `${c.total ?? run.filters.recipients?.length ?? 0} addresses from your list · ${run.filters.subject ?? ""}`
-                  : `${runName(run)}${run.filters.source === "directory" ? "" : `, ${run.filters.country}`} · up to ${run.filters.limit} companies`
-                    + (run.mode === "fast" && run.filters.subject ? ` · “${run.filters.subject}”` : "")}
-              </p>
-              <div className="ag-actions">
-                {active && <button type="button" className="ag-btn ag-btn--ghost" onClick={stop}><Square size={15} aria-hidden="true" /> Stop agent</button>}
+      <section className="ag ar">
+        <header className="ar-head">
+          <div className="ar-crumbs">
+            <button type="button" className="ar-back" onClick={onDashboard}><ArrowLeft size={15} aria-hidden="true" /> All agents</button>
+            <span className={`ar-pill is-${st.tone}`}><i aria-hidden="true" />{statusLabel(run)}</span>
+            <span className="ar-pill">{MODE_LABEL[run.mode]}</span>
+            {testMode && <span className="ar-pill"><FlaskConical size={12} aria-hidden="true" /> Test mode</span>}
+          </div>
+
+          <div className="ar-hero">
+            <div className="ar-hero-text">
+              <h2 className="ar-title"><SplitWords text={title} /></h2>
+              <p className="ar-sub">{where}</p>
+              <div className="ar-actions">
                 {canResume(run) && (
-                  <button type="button" className="ag-btn ag-btn--primary" onClick={resume} disabled={resuming}>
+                  <button type="button" className="btn btn-accent btn-lg" onClick={resume} disabled={resuming} data-magnetic>
                     <RotateCw size={16} aria-hidden="true" className={resuming ? "spin" : undefined} /> {resuming ? "Carrying on…" : "Continue from where it stopped"}
                   </button>
                 )}
-                <button type="button" className={`ag-btn ${active || canResume(run) ? "ag-btn--ghost" : "ag-btn--primary"}`} onClick={active ? onNewAgent : newRun}>
-                  {active ? <Plus size={16} aria-hidden="true" /> : <Zap size={16} aria-hidden="true" />} {active ? "Start another agent" : "New mission"}
-                </button>
-                <button type="button" className="ag-btn ag-btn--ghost" onClick={onDashboard}><LayoutDashboard size={15} aria-hidden="true" /> All agents</button>
-                {!!c.new && <button type="button" className="ag-btn ag-btn--ghost" onClick={() => onSeeResults(run.id)}>See in Results <ArrowRight size={15} aria-hidden="true" /></button>}
+                {!active && !canResume(run) && (
+                  <button type="button" className="btn btn-accent btn-lg" onClick={newRun} data-magnetic><Zap size={16} aria-hidden="true" /> New mission</button>
+                )}
+                {active && <button type="button" className="btn btn-secondary btn-lg ar-stop" onClick={stop}><Square size={14} aria-hidden="true" /> Stop agent</button>}
+                {(active || canResume(run)) && (
+                  <button type="button" className="btn btn-secondary btn-lg" onClick={active ? onNewAgent : newRun}>
+                    {active ? <Plus size={16} aria-hidden="true" /> : <Zap size={16} aria-hidden="true" />} {active ? "Start another agent" : "New mission"}
+                  </button>
+                )}
+                {!!c.new && <button type="button" className="btn btn-secondary btn-lg" onClick={() => onSeeResults(run.id)}>See in Results <ArrowRight size={15} aria-hidden="true" /></button>}
               </div>
+            </div>
+            <div className={`ar-big is-${st.tone}`} aria-live="polite">
+              <strong className="ar-pct"><CountUp value={progress} suffix="%" /></strong>
+              <span className="ar-note">{bigNote}{active && <span className="ag-caret" aria-hidden="true" />}</span>
             </div>
           </div>
 
-          <ol className="ag-pipe" style={{ gridTemplateColumns: `repeat(${run.steps.length}, minmax(0, 1fr))` }}>
-            {run.steps.map((s) => (
-              <li key={s.id} className={`ag-node is-${s.state}`}>
-                <span className="ag-node-dot" aria-hidden="true">
+          <div className="ar-bar" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Progress">
+            <i className={`is-${st.tone}`} style={{ width: `${Math.max(progress, 1)}%` }} />
+          </div>
+        </header>
+
+        {notice && (
+          <div className={`ar-notice is-${notice.tone}`} role={notice.tone === "bad" ? "alert" : "status"}>
+            <span className="ar-notice-icon" aria-hidden="true"><CircleAlert size={20} /></span>
+            <div>
+              <strong>{notice.title}</strong>
+              <p>{notice.body}{canResume(run) ? " Your progress is saved: Continue picks up from this step." : ""}</p>
+            </div>
+          </div>
+        )}
+
+        <ol className="ar-steps">
+          {run.steps.map((s, i) => (
+            <li key={s.id} className={`ar-step is-${s.state}`}>
+              <span className="ar-step-top">
+                <span className="ar-step-num">{String(i + 1).padStart(2, "0")}</span>
+                <span className="ar-step-icon" aria-hidden="true">
                   {s.state === "done" ? <CircleCheck size={18} /> : s.state === "failed" ? <CircleAlert size={18} /> : s.state === "running" ? <LoaderCircle size={18} className="spin" /> : STEP_ICON[s.id]}
                 </span>
-                <strong>{SHORT[s.id] ?? s.label}</strong>
-                <span>{s.note || (s.state === "pending" ? "Waiting" : "")}</span>
-              </li>
-            ))}
-          </ol>
+              </span>
+              <strong>{SHORT[s.id] ?? s.label}</strong>
+              <span className="ar-step-note">{s.state === "failed" ? "Stopped here" : s.note || (s.state === "pending" ? "Waiting" : s.state === "done" ? "Done" : "")}</span>
+            </li>
+          ))}
+        </ol>
 
-          <ul className="ag-stats">
-            {tiles.map(([label, value]) => (
-              <li key={label}><strong>{value ?? 0}</strong><span>{label}</span></li>
-            ))}
-          </ul>
-        </div>
+        <ul className="ar-stats">
+          {tiles.map(([label, value]) => (
+            <li key={label}><strong><CountUp value={value ?? 0} /></strong><span>{label}</span></li>
+          ))}
+        </ul>
 
         <div className="ag-grid">
           <div className="ag-panel ag-term">
             <div className="ag-panel-head">
-              <span><Terminal size={15} aria-hidden="true" /> Agent log</span>
+              <span><Terminal size={15} aria-hidden="true" /> Activity</span>
               {active && <span className="ag-live"><i className="ag-dot is-live" aria-hidden="true" /> Live</span>}
             </div>
             <ol className="ag-log" aria-live="polite">
@@ -348,9 +430,9 @@ export function AgentPage({
         <div className="ag-console ag-home">
           <Core state="idle" />
           <span className="ag-eyebrow"><i className="ag-dot is-ok" aria-hidden="true" /> Agent online</span>
-          <h2 className="ag-home-title">What should ReachAgent find today?</h2>
+          <h2 className="ag-home-title"><SplitWords text="What should ReachAgent find today?" /></h2>
           <p className="ag-home-sub">Give it a city and a kind of company. It searches Google Maps, BBB and OpenStreetMap, reads every website in depth, finds the emails and sends your message, on its own. Run several agents at once, each with its own city and message.</p>
-          <button type="button" className="ag-launch ag-launch--xl" onClick={() => setShowForm(true)}>
+          <button type="button" className="ag-launch ag-launch--xl" onClick={() => setShowForm(true)} data-magnetic>
             <Zap size={24} aria-hidden="true" /> START AGENT
           </button>
           <ul className="ag-caps">
@@ -386,107 +468,96 @@ export function AgentPage({
       : `in ${[form.city.trim() || "…", us ? form.state : form.country].filter(Boolean).join(", ")}`} · ${form.limit} companies · ${form.mode === "smart" ? "with" : "without"} enrichment`;
   const insert = (token: string) => set("message", `${form.message}${form.message.endsWith("\n") || !form.message ? "" : " "}${token}`);
 
-  /* ---------- Without enrichment, page 2: the message this agent sends ---------- */
-  if (form.mode === "fast" && page === "message") {
-    return (
-      <section className="ag">
-        <form className="ag-console ag-brief" onSubmit={(e) => { e.preventDefault(); start(); }}>
-          <div className="ag-brief-head">
-            <Core state="live" size="sm" />
-            <div>
-              <span className="ag-eyebrow"><i className="ag-dot is-live" aria-hidden="true" /> Mission brief · step 2 of 2</span>
-              <h2 className="ag-brief-title">Your message</h2>
-              <p className="ag-sub">Everyone this agent finds gets this message. It starts from your saved message; changes here are for this agent only.</p>
-            </div>
-            {testMode && <span className="ag-chip"><FlaskConical size={13} aria-hidden="true" /> Test mode: all emails to {mailbox.email}</span>}
-          </div>
-
-          <fieldset className="ag-section">
-            <legend><span>04</span> Message</legend>
-            <label className="ag-field">
-              <span className="ag-label">Subject</span>
-              <input className="input" value={form.subject} onChange={(e) => set("subject", e.target.value)} maxLength={200}
-                placeholder="e.g. Drafting support for {{company}}" />
-            </label>
-            <label className="ag-field">
-              <span className="ag-label">Message</span>
-              <textarea className="input ag-textarea" rows={12} value={form.message} onChange={(e) => set("message", e.target.value)} maxLength={5000}
-                placeholder={"Write your message. Use {{greeting}} for \"Hi John,\" or \"Hi Acme Builders team,\"."} />
-            </label>
-            <div className="ag-list-tools">
-              {(form.subject !== bulkDefaults.subject || form.message !== bulkDefaults.message) && bulkDefaults.message && (
-                <button type="button" className="ag-token" onClick={() => setForm((f) => ({ ...f, subject: bulkDefaults.subject, message: bulkDefaults.message }))}>
-                  Back to my saved message
-                </button>
-              )}
-              {["{{greeting}}", "{{first_name}}", "{{company}}", "{{city}}"].map((t) => (
-                <button key={t} type="button" className="ag-token" onClick={() => insert(t)}>{t}</button>
-              ))}
-              <span className="ag-hint">{"{{greeting}}"} is &ldquo;Hi John,&rdquo; when the website names someone, else &ldquo;Hi Acme Builders team,&rdquo;.</span>
-            </div>
-          </fieldset>
-
-          <div className="ag-launchbar">
-            <code className="ag-query"><span>›</span> {query}</code>
-            <div className="ag-launch-row">
-              <button type="button" className="ag-btn ag-btn--ghost" onClick={() => setPage("brief")}><ArrowLeft size={16} aria-hidden="true" /> Back</button>
-              <button type="submit" className="ag-launch" disabled={starting || !mailbox.connected}>
-                {starting ? <LoaderCircle size={20} className="spin" aria-hidden="true" /> : <Zap size={20} aria-hidden="true" />}
-                {starting ? "Launching…" : "Launch agent"}
-                <ArrowRight size={20} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-        </form>
-      </section>
-    );
-  }
+  const defaults = form.mode === "smart" ? smartDefaults : bulkDefaults;
+  const tokens = form.mode === "smart" ? ["{{first_name}}", "{{company}}", "{{personal_line}}"]
+    : bulk ? ["{{greeting}}", "{{first_name}}", "{{company}}"] : ["{{greeting}}", "{{first_name}}", "{{company}}", "{{city}}"];
+  const tokenHint = form.mode === "smart"
+    ? <>{"{{personal_line}}"} is one opening sentence the AI writes for each person from what it found.</>
+    : bulk
+      ? <>{"{{greeting}}"} is &ldquo;Hi John,&rdquo;, or &ldquo;Hi there,&rdquo; when the list has no name.</>
+      : <>{"{{greeting}}"} is &ldquo;Hi John,&rdquo; when the website names someone, else &ldquo;Hi Acme Builders team,&rdquo;.</>;
+  const mode = MODES.find((m) => m.id === form.mode) ?? MODES[0];
+  const where = bulk
+    ? recipients.length ? `${recipients.length} address${recipients.length === 1 ? "" : "es"}` : "No list yet"
+    : form.source === "directory" ? (form.directory_url.trim() ? siteOf(form.directory_url.trim()) : "No link yet")
+      : form.city.trim() ? `${form.city.trim()}, ${us ? form.state : form.country} · ${form.limit}` : "No city yet";
+  const steps = [
+    { n: 1 as const, title: "How it works", value: mode.name },
+    { n: 2 as const, title: bulk ? "Who gets it" : "Where to look", value: where },
+    { n: 3 as const, title: "Your message", value: form.subject.trim() || "Not written yet" },
+  ];
+  const head = step === 1
+    ? { title: "How should it work?", sub: "Click the card that fits you, then press Next at the bottom." }
+    : step === 2
+      ? bulk ? { title: "Who should get it?", sub: "Paste your list or upload a CSV. Every address is checked first." }
+        : { title: "Where should it look?", sub: "A city to search, or a directory page that lists many companies." }
+      : { title: "What should it say?", sub: form.mode === "smart"
+          ? "Write the email. Where you put {{personal_line}}, the AI adds an opening line written for each person."
+          : "Write the email everyone gets. The blanks fill in for each company." };
 
   return (
     <section className="ag">
-      <form className="ag-console ag-brief" onSubmit={(e) => { e.preventDefault(); start(); }}>
-        <div className="ag-brief-head">
-          <Core state="live" size="sm" />
-          <div>
-            <span className="ag-eyebrow"><i className="ag-dot is-live" aria-hidden="true" /> Mission brief</span>
-            <h2 className="ag-brief-title">Run agent</h2>
-            <p className="ag-sub">Pick how the agent works, then tell it where to look or who to write to.</p>
-          </div>
+      <form className="ag-console ag-brief wz" onSubmit={(e) => { e.preventDefault(); start(); }}>
+        <div className="wz-top">
+          <span className="ag-eyebrow">New agent</span>
           {testMode && <span className="ag-chip"><FlaskConical size={13} aria-hidden="true" /> Test mode: all emails to {mailbox.email}</span>}
         </div>
 
-        <fieldset className="ag-section">
-          <legend><span>01</span> Mode</legend>
-          <div className="ag-modes ag-modes--3" role="radiogroup" aria-label="Mode">
-            <button type="button" role="radio" aria-checked={form.mode === "fast"} className={`ag-mode${form.mode === "fast" ? " is-on" : ""}`} onClick={() => set("mode", "fast")}>
-              <span className="ag-mode-icon"><Zap size={20} aria-hidden="true" /></span>
-              <span className="ag-mode-text">
-                <strong>Without enrichment <em>Free</em></strong>
-                <span>Finds companies on Google Maps, BBB and OpenStreetMap or on a directory you paste, reads their team, about and contact pages, and emails them. Same message for everyone.</span>
-                <span className="ag-tools"><i>Google Maps</i><i>BBB</i><i>OpenStreetMap</i><i>Directories</i><i>Deep website read</i><i>Mail server check</i></span>
-              </span>
-            </button>
-            <button type="button" role="radio" aria-checked={form.mode === "smart"} className={`ag-mode${form.mode === "smart" ? " is-on" : ""}`} onClick={() => setForm((f) => ({ ...f, mode: "smart" }))}>
-              <span className="ag-mode-icon"><Sparkles size={20} aria-hidden="true" /></span>
-              <span className="ag-mode-text">
-                <strong>With enrichment <em>Uses credits</em></strong>
-                <span>The owners&apos; own emails, checked, each with an opening line written by AI.</span>
-                <span className="ag-tools"><i>Google Maps</i><i>Directories</i><i>Hunter</i><i>Reoon</i><i>AI</i></span>
-              </span>
-            </button>
-            <button type="button" role="radio" aria-checked={bulk} className={`ag-mode${bulk ? " is-on" : ""}`} onClick={() => set("mode", "bulk")}>
-              <span className="ag-mode-icon"><ListPlus size={20} aria-hidden="true" /></span>
-              <span className="ag-mode-text">
-                <strong>Bulk send <em>Your list</em></strong>
-                <span>Paste your own emails or upload a CSV, write the message, and the agent sends it.</span>
-                <span className="ag-tools"><i>Your list</i><i>Email check</i><i>Your message</i></span>
-              </span>
-            </button>
-          </div>
-        </fieldset>
+        <ol className="wz-steps" aria-label="Steps">
+          {steps.map((x) => (
+            <li key={x.n} className={x.n === step ? "is-now" : x.n < step ? "is-done" : ""}>
+              <button type="button" onClick={() => (x.n < step ? setStep(x.n) : x.n > step ? goTo(x.n) : undefined)} aria-current={x.n === step ? "step" : undefined}>
+                <span className="wz-num">{x.n < step ? <Check size={13} strokeWidth={3} aria-hidden="true" /> : `0${x.n}`}</span>
+                <span className="wz-text"><small>Step {x.n} of 3</small><strong>{x.title}</strong></span>
+              </button>
+            </li>
+          ))}
+        </ol>
 
-        {bulk ? (
-          <div className="ag-bulk">
+        <div className="wz-head" key={`h${step}`}>
+          <h2 className="ag-brief-title">{head.title}</h2>
+          <p className="ag-sub">{head.sub}</p>
+        </div>
+
+        <div className="wz-body" key={`b${step}`}>
+          {step === 1 && (
+            <>
+              <div className="ag-modes ag-modes--3" role="radiogroup" aria-label="How it works">
+                {MODES.map((m) => {
+                  const on = form.mode === m.id;
+                  return (
+                    <button key={m.id} type="button" role="radio" aria-checked={on} className={`ag-mode ag-mode2${on ? " is-on" : ""}`}
+                      onClick={() => setForm((f) => ({ ...f, mode: m.id }))}>
+                      <span className="ag-mode2-top">
+                        <span className="ag-mode-icon">{m.icon}</span>
+                        <em className="ag-mode2-tag">{m.tag}</em>
+                        <span className="ag-mode2-radio" aria-hidden="true">{on && <Check size={12} strokeWidth={3} />}</span>
+                      </span>
+                      <strong className="ag-mode2-name">{m.name}</strong>
+                      <span className="ag-mode2-desc">{m.desc}</span>
+                      <span className="ag-mode2-best"><b>Best for</b> {m.best}</span>
+                      <span className="ag-mode2-pick">{on ? <><Check size={14} strokeWidth={3} aria-hidden="true" /> Selected</> : "Choose this"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="wz-flow" key={form.mode}>
+                <span className="wz-flow-label">After you launch, the agent does this on its own</span>
+                <ol>
+                  {mode.flow.map((f, i) => (
+                    <li key={f.t} style={{ animationDelay: `${i * 70}ms` }}>
+                      <span className="wz-flow-num">{String(i + 1).padStart(2, "0")}</span>
+                      <strong>{f.t}</strong>
+                      <span>{f.d}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="wz-flow-note">You can watch every step live on the Dashboard, and stop it any time.</p>
+              </div>
+            </>
+          )}
+
+          {step === 2 && (bulk ? (
             <fieldset className="ag-section">
               <legend><span>02</span> Your list <em className="ag-legend-count">{recipients.length} email{recipients.length === 1 ? "" : "s"}</em></legend>
               <label className="ag-field">
@@ -502,34 +573,10 @@ export function AgentPage({
                 <span className="ag-hint">Every email is checked before sending. Duplicates and anyone emailed before are skipped.</span>
               </div>
             </fieldset>
+          ) : (
+            <>
             <fieldset className="ag-section">
-              <legend><span>03</span> Your message</legend>
-              <label className="ag-field">
-                <span className="ag-label">Subject</span>
-                <input className="input" value={form.subject} onChange={(e) => set("subject", e.target.value)} placeholder={`e.g. ${bulkDefaults.subject || "Drafting support for {{company}}"}`} />
-              </label>
-              <label className="ag-field">
-                <span className="ag-label">Message</span>
-                <textarea className="input ag-textarea" rows={9} value={form.message} onChange={(e) => set("message", e.target.value)}
-                  placeholder={bulkDefaults.message ? `For example:\n\n${bulkDefaults.message}` : "Write your message. Use {{greeting}} for \"Hi John,\"."} />
-              </label>
-              <div className="ag-list-tools">
-                {!form.message && bulkDefaults.message && (
-                  <button type="button" className="ag-token" onClick={() => setForm((f) => ({ ...f, subject: f.subject || bulkDefaults.subject, message: bulkDefaults.message }))}>
-                    Use my saved message
-                  </button>
-                )}
-                {["{{greeting}}", "{{first_name}}", "{{company}}"].map((t) => (
-                  <button key={t} type="button" className="ag-token" onClick={() => insert(t)}>{t}</button>
-                ))}
-                <span className="ag-hint">{"{{greeting}}"} is &ldquo;Hi John,&rdquo;, or &ldquo;Hi there,&rdquo; when the list has no name.</span>
-              </div>
-            </fieldset>
-          </div>
-        ) : (
-          <>
-            <fieldset className="ag-section">
-              <legend><span>02</span> Target</legend>
+              <legend><span>02</span> Where to look</legend>
               <div className="ag-source" role="radiogroup" aria-label="Where to look">
                 <button type="button" role="radio" aria-checked={form.source === "maps"} className={form.source === "maps" ? "is-on" : ""} onClick={() => set("source", "maps")}>
                   <Radar size={17} aria-hidden="true" />
@@ -609,16 +656,47 @@ export function AgentPage({
                 </p>
               </div>
             </fieldset>
-          </>
-        )}
+            </>
+          ))}
+
+          {step === 3 && (
+            <fieldset className="ag-section">
+              <legend><span>04</span> Message</legend>
+              <label className="ag-field">
+                <span className="ag-label">Subject</span>
+                <input className="input" value={form.subject} onChange={(e) => set("subject", e.target.value)} maxLength={200}
+                  placeholder={`e.g. ${defaults.subject || "Drafting support for {{company}}"}`} />
+              </label>
+              <label className="ag-field">
+                <span className="ag-label">Message</span>
+                <textarea className="input ag-textarea" rows={11} value={form.message} onChange={(e) => set("message", e.target.value)} maxLength={5000}
+                  placeholder={defaults.message ? `For example:\n\n${defaults.message}` : "Write your message."} />
+              </label>
+              <div className="ag-list-tools">
+                {!form.message && defaults.message && (
+                  <button type="button" className="ag-token ag-token--fill" onClick={() => setForm((f) => ({ ...f, subject: f.subject || defaults.subject, message: defaults.message }))}>
+                    Use my saved message
+                  </button>
+                )}
+                {tokens.map((t) => (
+                  <button key={t} type="button" className="ag-token" onClick={() => insert(t)}>{t}</button>
+                ))}
+                <span className="ag-hint">{tokenHint}</span>
+              </div>
+            </fieldset>
+          )}
+        </div>
 
         <div className="ag-launchbar">
-          <code className="ag-query"><span>›</span> {query}</code>
+          {step === 1 ? <span className="ag-hint wz-next-hint">Picked <strong>{mode.name}</strong>. Next you tell it {bulk ? "who to send to" : "where to look"}.</span>
+            : <code className="ag-query"><span>›</span> {query}</code>}
           <div className="ag-launch-row">
-            <button type="button" className="ag-btn ag-btn--ghost" onClick={() => setShowForm(false)}>Back</button>
-            <button type="submit" className="ag-launch" disabled={starting || !mailbox.connected}>
-              {starting ? <LoaderCircle size={20} className="spin" aria-hidden="true" /> : <Zap size={20} aria-hidden="true" />}
-              {starting ? "Launching…" : bulk ? `Send to ${recipients.length}` : form.mode === "fast" ? "Next: your message" : "Launch agent"}
+            <button type="button" className="ag-btn ag-btn--ghost" onClick={() => (step === 1 ? setShowForm(false) : setStep((step - 1) as 1 | 2))}>
+              <ArrowLeft size={16} aria-hidden="true" /> {step === 1 ? "Cancel" : "Back"}
+            </button>
+            <button type="submit" className="ag-launch" disabled={starting || (step === 3 && !mailbox.connected)} data-magnetic>
+              {starting ? <LoaderCircle size={20} className="spin" aria-hidden="true" /> : step === 3 ? <Zap size={20} aria-hidden="true" /> : null}
+              {starting ? "Launching…" : step === 1 ? `Next: ${bulk ? "your list" : "where to look"}` : step === 2 ? "Next: your message" : bulk ? `Send to ${recipients.length}` : "Launch agent"}
               <ArrowRight size={20} aria-hidden="true" />
             </button>
           </div>

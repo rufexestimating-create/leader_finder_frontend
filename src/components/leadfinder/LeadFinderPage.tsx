@@ -34,6 +34,7 @@ export function LeadFinderPage({
   navTick,
   onView,
   onCount,
+  briefTick = 0,
 }: {
   notify: (msg: string, isError?: boolean) => void;
   confirm: (r: ConfirmRequest) => void;
@@ -41,6 +42,8 @@ export function LeadFinderPage({
   navTick: number;
   onView: (v: View) => void;
   onCount: (n: number) => void;
+  /** Bumped by the top bar's New agent button */
+  briefTick?: number;
 }) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [settings, setSettings] = useState<FinderSettings>(DEFAULT_SETTINGS);
@@ -222,6 +225,15 @@ export function LeadFinderPage({
     show("agent");
   };
 
+  // The top bar's New agent button: open a fresh brief once per click
+  const [seenBrief, setSeenBrief] = useState(briefTick);
+  if (briefTick !== seenBrief) {
+    setSeenBrief(briefTick);
+    setAgentRun(null);
+    setAgentBrief((b) => ({ open: true, nonce: b.nonce + 1 }));
+    setOpenId(null);
+  }
+
   const openTools = () => {
     setSettingsSection("advanced");
     show("settings");
@@ -282,6 +294,7 @@ export function LeadFinderPage({
             <AgentPage key={agentRun ?? `home-${agentBrief.nonce}`} mailbox={mailbox} notify={notify} confirm={confirm} openRunId={agentRun}
               startWithBrief={agentBrief.open}
               bulkDefaults={{ subject: settings.agentSubject, message: settings.agentMessage }}
+              smartDefaults={{ subject: settings.subject, message: settings.message }}
               onOpenCompany={async (id) => { await load(); setOpenId(id); }}
               onSeeResults={(id) => { setResultsRun(id); setStatus("all"); setAgentRun(null); show("results"); }}
               onClosed={() => { setAgentRun(null); setAgentBrief((b) => ({ open: false, nonce: b.nonce + 1 })); }}

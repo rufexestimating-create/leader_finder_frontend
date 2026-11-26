@@ -1,14 +1,17 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowUpRight, Bot, Building2, CircleCheck, Mail, MapPin, Plus, Radar, Rocket, RotateCw, Send, Square, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, Plus, RotateCw } from "lucide-react";
 import type { ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import { AGENT_ACTIVE, type AgentRun, call, send, toAgentRun } from "@/lib/leadFinderApi";
-import { MODE_LABEL, STATUS, canResume, place, progressOf, runName, statusLabel } from "./agentRun";
+import { LiveCard, LiveRow } from "./LiveAgent";
+import { MODE_LABEL, STATUS, canResume, runName, statusLabel } from "./agentRun";
 
 const LIVE_MS = 4000;
 const IDLE_MS = 30_000;
-const RECENT = 4;
+const RECENT = 5;
+/** Running agents shown before "Show all" */
+const MANY = 4;
 
 function ago(iso: string | null, now: number): string {
   if (!iso || !now) return "";
@@ -36,6 +39,9 @@ export function AgentsPanel({
   onRuns?: (runs: AgentRun[]) => void;
 }) {
   const [runs, setRuns] = useState<AgentRun[] | null>(null);
+  // With several agents running, each is one line; the one opened here shows its full steps
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const [now, setNow] = useState(0);
 
   const load = useCallback(async () => {
@@ -84,76 +90,29 @@ export function AgentsPanel({
     load();
   };
 
-  const card = (run: AgentRun, idx: number) => {
+  const row = (run: AgentRun) => {
     const st = STATUS[run.status];
-    const live = AGENT_ACTIVE.includes(run.status);
     const c = run.counts;
-    const progress = progressOf(run);
-    const shown = live ? Math.max(progress, 4) : progress;
-    const loc = run.mode !== "bulk" && run.filters.country ? place(run.filters) : null;
-    const when = live ? `started ${ago(run.created_at, now)}` : ago(run.finished_at ?? run.created_at, now);
-    const coreIcon = live ? <Bot size={20} /> : st.tone === "ok" ? <CircleCheck size={20} /> : st.tone === "bad" ? <TriangleAlert size={20} /> : <Bot size={20} />;
-    const stats = [
-      ...(run.mode !== "bulk" ? [{ k: "Companies", v: c.new ?? 0, icon: <Building2 size={13} /> }] : []),
-      { k: "Emails", v: c.emails ?? 0, icon: <Mail size={13} /> },
-      { k: "Sent", v: c.sent ?? 0, icon: <Send size={13} /> },
-    ];
-
+    const when = ago(run.finished_at ?? run.created_at, now);
+    const bits = [
+      run.mode !== "bulk" ? `${c.new ?? 0} new` : null,
+      `${c.emails ?? 0} email${c.emails === 1 ? "" : "s"}`,
+      `${c.sent ?? 0} sent`,
+    ].filter(Boolean).join(" · ");
     return (
-      <li key={run.id} className={`sp-card is-${st.tone} is-${run.mode}${live ? " is-live" : ""}`} style={{ animationDelay: `${idx * 70}ms` }}>
-        <button type="button" className="sp-card-body" onClick={() => onOpen(run.id)} aria-label={`Open ${runName(run)}`}>
-          <span className="sp-card-top">
-            <span className="sp-core" aria-hidden="true">
-              <span className="sp-orbit"><i /></span>
-              <span className="sp-core-inner">{coreIcon}</span>
-            </span>
-            <span className="sp-card-id">
-              <span className="sp-chip">{MODE_LABEL[run.mode]}</span>
-              <span className="sp-card-name">{runName(run)}</span>
-            </span>
+      <li key={run.id} className={`rc is-${st.tone}`}>
+        <button type="button" className="rc-body" onClick={() => onOpen(run.id)} aria-label={`Open ${runName(run)}`}>
+          <i className="rc-dot" aria-hidden="true" />
+          <span className="rc-main">
+            <span className="rc-name">{runName(run)}</span>
+            <span className="rc-meta">{statusLabel(run)}{when ? ` · ${when}` : ""} · {MODE_LABEL[run.mode]}</span>
           </span>
-
-          <span className="sp-status">
-            <span className="sp-status-dot" aria-hidden="true" />
-            <span className="sp-status-text">{statusLabel(run)}</span>
-            {when && <span className="sp-when">{when}</span>}
-          </span>
-
-          <span className="sp-progress">
-            <span className="sp-bar" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Progress">
-              <span className="sp-bar-fill" style={{ width: `${shown}%` }} />
-            </span>
-            <span className="sp-pct">{progress}%</span>
-          </span>
-
-          {run.status === "failed" && run.error ? (
-            <span className="sp-error">{run.error}</span>
-          ) : (
-            <span className="sp-stats">
-              {stats.map((s) => (
-                <span key={s.k} className="sp-stat">
-                  <span className="sp-stat-k">{s.icon}{s.k}</span>
-                  <strong>{s.v.toLocaleString()}</strong>
-                </span>
-              ))}
-            </span>
-          )}
-
-          <span className="sp-foot">
-            {loc ? <span className="sp-loc"><MapPin size={12} aria-hidden="true" />{loc}{run.filters.limit ? ` · max ${run.filters.limit}` : ""}</span> : <span />}
-            <span className="sp-open">{live ? "Watch live" : "View report"} <ArrowUpRight size={13} aria-hidden="true" /></span>
-          </span>
+          <span className="rc-stats">{bits}</span>
+          <ArrowUpRight size={16} className="rc-go" aria-hidden="true" />
         </button>
-
-        {live && (
-          <button type="button" className="sp-stop" onClick={() => stop(run)} aria-label={`Stop ${runName(run)}`}>
-            <Square size={10} aria-hidden="true" /> Stop
-          </button>
-        )}
         {canResume(run) && (
-          <button type="button" className="sp-stop sp-resume" onClick={() => resume(run)} disabled={resuming === run.id}
-            aria-label={`Continue ${runName(run)} from where it stopped`}>
-            <RotateCw size={10} aria-hidden="true" className={resuming === run.id ? "spin" : undefined} /> Continue
+          <button type="button" className="rc-act" onClick={() => resume(run)} disabled={resuming === run.id} aria-label={`Continue ${runName(run)} from where it stopped`}>
+            <RotateCw size={11} aria-hidden="true" className={resuming === run.id ? "spin" : undefined} /> Continue
           </button>
         )}
       </li>
@@ -161,60 +120,54 @@ export function AgentsPanel({
   };
 
   return (
-    <section className="sp" aria-label="Your agents">
-      <span className="sp-stars" aria-hidden="true" />
-      <span className="sp-stars sp-stars--far" aria-hidden="true" />
-      <span className="sp-nebula" aria-hidden="true" />
-      <span className="sp-floor" aria-hidden="true" />
-
-      <div className="sp-head">
-        <div className="sp-head-text">
-          <span className="sp-eyebrow"><Radar size={13} aria-hidden="true" /> Mission control</span>
-          <h3>Your agents</h3>
-          <p>
-            {runs === null
-              ? "Connecting to your fleet…"
-              : active.length
-                ? `${active.length} agent${active.length === 1 ? " is" : "s are"} on a mission right now. Click one to watch it live.`
-                : "All agents are docked. Launch one or several at once, each with its own city and message."}
-          </p>
+    <section className="aw" aria-label="Your agents">
+      <div className="aw-head">
+        <div>
+          <span className="sp-eyebrow"><b>[02]</b> Your agents</span>
+          <h3>{runs === null ? "Loading agents…" : active.length ? `${active.length} agent${active.length === 1 ? "" : "s"} working now` : "No agent running"}</h3>
         </div>
-        <div className="sp-head-side">
-          <ul className="sp-counters" aria-label="Fleet totals">
-            <li className={active.length ? "is-live" : undefined}><strong>{active.length}</strong><span>Active</span></li>
+        <div className="aw-side">
+          <ul className="aw-counts" aria-label="Agent totals">
+            <li className={active.length ? "is-live" : undefined}><strong>{active.length}</strong><span>Running</span></li>
             <li><strong>{completed}</strong><span>Completed</span></li>
-            <li><strong>{sent.toLocaleString()}</strong><span>Emails sent</span></li>
+            <li><strong>{sent}</strong><span>Emails sent</span></li>
           </ul>
-          <button type="button" className="sp-launch" onClick={onNew}>
-            <span className="sp-launch-glow" aria-hidden="true" />
-            <Plus size={16} aria-hidden="true" /> New agent
-          </button>
         </div>
       </div>
 
-      {runs !== null && !active.length && !recent.length && (
-        <div className="sp-empty">
-          <span className="sp-radar" aria-hidden="true"><span /><Rocket size={22} /></span>
-          <div>
-            <strong>Awaiting your first mission</strong>
-            <p>Launch an agent and it appears here the moment it takes off.</p>
-          </div>
+      <div className={`aw-grid${active.length ? " has-live" : ""}`}>
+        <div className="aw-live">
+          <p className="aw-label">Running now{active.length ? ` · ${active.length}` : ""}</p>
+          {active.length ? (
+            active.length === 1 ? (
+              <ul className="lc-list"><LiveCard run={active[0]} onOpen={onOpen} onStop={() => stop(active[0])} /></ul>
+            ) : (
+              <>
+                <ul className="lc-list lc-list--many">
+                  {(showAll ? active : active.slice(0, MANY)).map((r) => (r.id === expanded
+                    ? <LiveCard key={r.id} run={r} onOpen={onOpen} onStop={() => stop(r)} onCollapse={() => setExpanded(null)} />
+                    : <LiveRow key={r.id} run={r} onExpand={() => setExpanded(r.id)} onStop={() => stop(r)} />))}
+                </ul>
+                {active.length > MANY && (
+                  <button type="button" className="aw-more" onClick={() => setShowAll((v) => !v)}>
+                    {showAll ? "Show fewer" : `Show all ${active.length} running agents`}
+                  </button>
+                )}
+              </>
+            )
+          ) : (
+            <div className="aw-idle">
+              <strong>Nothing is running right now</strong>
+              <p>Start an agent and you can follow every step here: finding companies, reading their websites, finding emails and sending.</p>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={onNew}><Plus size={14} aria-hidden="true" /> Start an agent</button>
+            </div>
+          )}
         </div>
-      )}
-
-      {!!active.length && (
-        <>
-          <p className="sp-label"><span className="sp-label-dot is-live" aria-hidden="true" /> Active missions</p>
-          <ul className="sp-grid">{active.map(card)}</ul>
-        </>
-      )}
-
-      {!!recent.length && (
-        <>
-          <p className="sp-label"><span className="sp-label-dot" aria-hidden="true" /> Mission log</p>
-          <ul className="sp-grid">{recent.map(card)}</ul>
-        </>
-      )}
+        <div className="aw-recent">
+          <p className="aw-label">Recent</p>
+          {recent.length ? <ul className="rc-list">{recent.map(row)}</ul> : <p className="aw-none">{runs === null ? "Loading…" : "Finished agents show up here."}</p>}
+        </div>
+      </div>
     </section>
   );
 }

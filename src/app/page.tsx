@@ -1,12 +1,13 @@
 "use client";
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Bot, CheckCircle2, LayoutGrid, ListChecks, LogOut, Settings2, WifiOff } from "lucide-react";
+import { AlertCircle, Bot, CheckCircle2, LayoutGrid, ListChecks, LogOut, Plus, Settings2, WifiOff } from "lucide-react";
 import { Brand } from "@/components/AuthShell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ConfirmDialog, type ConfirmRequest } from "@/components/dashboard/ConfirmDialog";
 import { apiFetch, clearToken, getToken, type AuthUser } from "@/lib/auth";
 import { LeadFinderPage, type View } from "@/components/leadfinder/LeadFinderPage";
+import { MotionLayer, Preloader } from "@/components/motion";
 
 const NAV: { id: View; label: string; icon: React.ReactNode }[] = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutGrid size={15} aria-hidden="true" /> },
@@ -23,6 +24,14 @@ export default function Home() {
   const [nav, setNav] = useState<{ view: View; tick: number }>({ view: "dashboard", tick: 0 });
   const [resultCount, setResultCount] = useState(0);
   const go = useCallback((view: View) => setNav((n) => ({ view, tick: n.tick + 1 })), []);
+  const [briefTick, setBriefTick] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    const first = setTimeout(onScroll, 0);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { clearTimeout(first); window.removeEventListener("scroll", onScroll); };
+  }, []);
   const [toast, setToast] = useState<{ msg: string; isError: boolean; key: number } | null>(null);
   const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null);
 
@@ -75,7 +84,7 @@ export default function Home() {
   return (
     <div className="app">
       <a href="#main" className="skip-link">Skip to main content</a>
-      <header className="topbar">
+      <header className={`topbar topbar--dark${scrolled ? " is-scrolled" : ""}`}>
         <div className="topbar-surface" aria-hidden="true" />
         <div className="topbar-inner">
           <button type="button" className="topbar-brand" onClick={() => go("dashboard")} aria-label="Go to the dashboard"><Brand /></button>
@@ -90,15 +99,18 @@ export default function Home() {
           </nav>
           <div className="topbar-actions">
             <ThemeToggle />
-            <button className="btn btn-ghost btn-sm" onClick={logOut}
-              style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <LogOut size={15} aria-hidden="true" /> Log out
+            <button type="button" className="topbar-link" onClick={logOut}>
+              <LogOut size={14} aria-hidden="true" /> <span>Log out</span>
+            </button>
+            <span className="topbar-divider" aria-hidden="true" />
+            <button type="button" className="topbar-cta" onClick={() => { go("agent"); setBriefTick((t) => t + 1); }}>
+              <Plus size={15} aria-hidden="true" /> <span>New agent</span>
             </button>
           </div>
         </div>
       </header>
       <main className="main" id="main" tabIndex={-1}>
-        <LeadFinderPage notify={notify} confirm={setConfirmReq} view={nav.view} navTick={nav.tick} onView={go} onCount={setResultCount} />
+        <LeadFinderPage notify={notify} confirm={setConfirmReq} view={nav.view} navTick={nav.tick} onView={go} onCount={setResultCount} briefTick={briefTick} />
       </main>
       {toast && (
         <div key={toast.key} className={`toast${toast.isError ? " error" : ""}`} role={toast.isError ? "alert" : "status"}>
@@ -107,6 +119,8 @@ export default function Home() {
         </div>
       )}
       <ConfirmDialog request={confirmReq} onClose={closeConfirm} />
+      <MotionLayer />
+      <Preloader />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useRef, useState } from "react";
-import { Bot, Gauge, Inbox, Mail, MessageSquareText, Minus, Plus, RotateCcw, SlidersHorizontal, Trash2, UserSearch } from "lucide-react";
+import React, { useState } from "react";
+import { Gauge, Inbox, MessageSquareText, Minus, Plus, RotateCcw, SlidersHorizontal, Trash2, UserSearch } from "lucide-react";
 import {
   COMPANY_TYPES,
   DEFAULT_ROLES,
@@ -25,13 +25,11 @@ const EXAMPLE_NO_RATING = { ...EXAMPLE, name: "Indus Build Co.", city: "Karachi"
 const MAX_TEMPLATES = 8;
 const ROLE_SUGGESTIONS = ["Owner", "President", "CEO", "Estimator", "Chief Estimator", "Preconstruction Manager", "Project Manager", "Operations Manager", "Business Development", "Principal", "Partner"];
 const ROLE_GROUPS = [{ id: "default", label: "Any company" }, ...COMPANY_TYPES.filter((t) => t.id !== "other").map((t) => ({ id: t.id, label: t.label }))];
-const MESSAGE_VARS: [string, string][] = [["first_name", "First name"], ["company", "Company"], ["personal_line", "Personal line"]];
-const PREVIEW = { first_name: "Sara", company: "Saffron Line Architects", personal_line: "Your Gulberg studio project caught our eye." };
 const SPEEDS: [number, string][] = [[1, "Slow"], [2, "Balanced"], [3, "Fast"], [5, "Fastest"]];
 const clampDaily = (n: number) => Math.min(500, Math.max(1, Math.round(n)));
 const same = (a: string[] = [], b: string[] = []) => a.length === b.length && a.every((x, i) => x === b[i]);
 
-export type SettingsSection = "people" | "message" | "agent" | "mailbox" | "lines" | "limits" | "advanced";
+export type SettingsSection = "people" | "mailbox" | "lines" | "limits" | "advanced";
 type Section = SettingsSection;
 
 /** Everything a non-technical user changes day to day, one topic at a time */
@@ -72,9 +70,6 @@ export function FinderSettingsPanel({
     onSection?.(s);
   };
   const [roleType, setRoleType] = useState("default");
-  const messageRef = useRef<HTMLTextAreaElement>(null);
-  const subjectRef = useRef<HTMLInputElement>(null);
-  const lastField = useRef<"subject" | "message">("message");
 
   const set = <K extends keyof FinderSettings>(k: K, v: FinderSettings[K]) => setDraft((d) => ({ ...d, [k]: v }));
   const setTemplate = (id: string, patch: Partial<LineTemplate>) => set("templates", draft.templates.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -87,8 +82,6 @@ export function FinderSettingsPanel({
 
   const sections: { id: Section; icon: React.ReactNode; title: string; sub: string }[] = [
     { id: "people", icon: <UserSearch size={18} />, title: "Who to look for", sub: `${draft.roles.default?.length ?? 0} job titles` },
-    { id: "message", icon: <Mail size={18} />, title: "Message: with enrichment", sub: "AI writes each opening line" },
-    { id: "agent", icon: <Bot size={18} />, title: "Message: without enrichment", sub: `Same for everyone · ${draft.emailsPerDay} a day` },
     { id: "mailbox", icon: <Inbox size={18} />, title: "Your mailbox", sub: mailbox?.connected ? mailbox.email ?? "Connected" : "Not connected" },
     { id: "lines", icon: <MessageSquareText size={18} />, title: "Personal lines", sub: `${activeLines} in use` },
     { id: "limits", icon: <Gauge size={18} />, title: "Daily limits", sub: `${draft.dailyLimit} a day, ${draft.atOnce} at once` },
@@ -106,21 +99,6 @@ export function FinderSettingsPanel({
     setTried(false);
   };
 
-  /** Puts {{name}} where the cursor was in the subject or message */
-  const insertVar = (name: string) => {
-    const token = `{{${name}}}`;
-    const field = lastField.current;
-    const el = field === "subject" ? subjectRef.current : messageRef.current;
-    const value = field === "subject" ? draft.subject : draft.message;
-    const start = el?.selectionStart ?? value.length;
-    const end = el?.selectionEnd ?? value.length;
-    set(field, value.slice(0, start) + token + value.slice(end));
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(start + token.length, start + token.length);
-    });
-  };
-  const fill = (text: string) => text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k: string) => PREVIEW[k as keyof typeof PREVIEW] ?? `{{${k}}}`);
 
   return (
     <div className="lf-set">
@@ -177,81 +155,6 @@ export function FinderSettingsPanel({
               }
             />
             {tried && noRoles && <span className="lf-error" role="alert">Add at least one job title for &ldquo;Any company&rdquo;.</span>}
-          </>
-        )}
-
-        {section === "message" && (
-          <>
-            <header className="lf-set-head">
-              <h3>Message: with enrichment</h3>
-              <p>Sent when the agent runs with enrichment. <code>{"{{personal_line}}"}</code> is written for each person by the AI (Gemini) from
-                what was found about their company, so every email opens differently. Click a button below to drop in their name, company or personal line.</p>
-            </header>
-            <div className="lf-set-split">
-              <div className="lf-set-col">
-                <label className="field">
-                  <span className="field-label">Subject</span>
-                  <input ref={subjectRef} className="input" value={draft.subject} onFocus={() => (lastField.current = "subject")} onChange={(e) => set("subject", e.target.value)} />
-                </label>
-                <label className="field">
-                  <span className="field-label">Message</span>
-                  <textarea ref={messageRef} className="input textarea" rows={10} value={draft.message} onFocus={() => (lastField.current = "message")} onChange={(e) => set("message", e.target.value)} />
-                </label>
-                <div className="lf-insert">
-                  <span>Insert</span>
-                  {MESSAGE_VARS.map(([v, label]) => (
-                    <button key={v} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertVar(v)}>
-                      <Plus size={12} aria-hidden="true" /> {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="lf-set-preview" aria-label="Preview">
-                <span className="lf-set-preview-label">Preview</span>
-                <strong>{fill(draft.subject) || "No subject"}</strong>
-                <p>{fill(draft.message)}</p>
-                <span className="field-hint">Sent as plain text from your mailbox, exactly as shown here.</span>
-              </div>
-            </div>
-          </>
-        )}
-
-        {section === "agent" && (
-          <>
-            <header className="lf-set-head">
-              <h3>Message: without enrichment</h3>
-              <p>Sent when the agent runs without enrichment: the same message for everyone, no AI. <code>{"{{greeting}}"}</code> becomes &ldquo;Hi Alfonso,&rdquo; when the website names
-                someone, otherwise &ldquo;Hi CTC Contractors team,&rdquo;. You can also use <code>{"{{company}}"}</code> and <code>{"{{city}}"}</code>.</p>
-            </header>
-            <div className="lf-set-split">
-              <div className="lf-set-col">
-                <label className="field">
-                  <span className="field-label">Subject</span>
-                  <input className="input" value={draft.agentSubject} onChange={(e) => set("agentSubject", e.target.value)} />
-                </label>
-                <label className="field">
-                  <span className="field-label">Message</span>
-                  <textarea className="input textarea" rows={12} value={draft.agentMessage} onChange={(e) => set("agentMessage", e.target.value)} />
-                </label>
-              </div>
-              <div className="lf-set-preview" aria-label="Preview">
-                <span className="lf-set-preview-label">Preview</span>
-                <strong>{draft.agentSubject.replace(/\{\{\s*company\s*\}\}/g, "CTC Contractors LLC") || "No subject"}</strong>
-                <p>{draft.agentMessage.replace(/\{\{\s*greeting\s*\}\}/g, "Hi Josh,").replace(/\{\{\s*company\s*\}\}/g, "CTC Contractors LLC").replace(/\{\{\s*city\s*\}\}/g, "Houston")}</p>
-              </div>
-            </div>
-            <div className="lf-limit">
-              <div className="lf-limit-head">
-                <span className="field-label">Emails per day</span>
-                <span className="field-hint">The agent stops at this many real emails a day and sends the rest tomorrow. Test emails don&apos;t count.</span>
-              </div>
-              <div className="lf-presets" role="group" aria-label="Emails per day">
-                {[10, 20, 30, 50, 100].map((n) => (
-                  <button key={n} type="button" className={draft.emailsPerDay === n ? "on" : ""} aria-pressed={draft.emailsPerDay === n}
-                    onClick={() => set("emailsPerDay", n)}>{n}</button>
-                ))}
-              </div>
-            </div>
           </>
         )}
 
@@ -353,6 +256,18 @@ export function FinderSettingsPanel({
               Up to <strong>{draft.dailyLimit}</strong> compan{draft.dailyLimit === 1 ? "y" : "ies"} a day, about{" "}
               <strong>{(draft.dailyLimit * 30).toLocaleString()}</strong> a month, with <strong>{draft.atOnce}</strong> running at once.
             </p>
+            <div className="lf-limit">
+              <div className="lf-limit-head">
+                <span className="field-label">Emails per day without enrichment</span>
+                <span className="field-hint">Without enrichment, the agent stops at this many real emails a day and sends the rest tomorrow. Test emails don&apos;t count.</span>
+              </div>
+              <div className="lf-presets" role="group" aria-label="Emails per day">
+                {[10, 20, 30, 50, 100].map((n) => (
+                  <button key={n} type="button" className={draft.emailsPerDay === n ? "on" : ""} aria-pressed={draft.emailsPerDay === n}
+                    onClick={() => set("emailsPerDay", n)}>{n}</button>
+                ))}
+              </div>
+            </div>
           </>
         )}
 
