@@ -50,6 +50,23 @@ export function DirectoryExtractor({ onSendEmails }: { onSendEmails?: (list: str
 
   useEffect(() => { logEnd.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
 
+  // Auto-launch when extraction finishes and emails were found
+  useEffect(() => {
+    if (!done || !stats.with_email || !onSendEmails) return;
+    (async () => {
+      try {
+        const r = await fetch(`${EXTRACTOR_URL}/api/results`);
+        const d = await r.json();
+        const lines: string[] = (d.results ?? []).flatMap((rec: Record<string, unknown>) => {
+          const emails = (rec.emails as string[] | undefined) ?? (rec.email ? [rec.email as string] : []);
+          return emails.map((e) => `${e}, ${(rec.name as string) || ""}`);
+        });
+        onSendEmails(lines.join("\n"), lines.length);
+      } catch {}
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done]);
+
   const start = async () => {
     if (!url.trim()) return;
     setLogs([]); logOff.current = 0; setProgress(0); setStats(EMPTY); setRunning(true); setDone(false);
@@ -106,22 +123,6 @@ export function DirectoryExtractor({ onSendEmails }: { onSendEmails?: (list: str
             : <><Zap size={16} aria-hidden="true" /> Start Extraction</>}
         </button>
       </div>
-
-      {done && stats.with_email > 0 && onSendEmails && (
-        <button type="button" className="ag-launch dx-send" onClick={async () => {
-          try {
-            const r = await fetch(`${EXTRACTOR_URL}/api/results`);
-            const d = await r.json();
-            const lines: string[] = (d.results ?? []).flatMap((rec: Record<string, unknown>) => {
-              const emails = (rec.emails as string[] | undefined) ?? (rec.email ? [rec.email as string] : []);
-              return emails.map((e) => `${e}, ${(rec.name as string) || ""}`);
-            });
-            onSendEmails(lines.join("\n"), lines.length);
-          } catch {}
-        }}>
-          Send emails to {stats.with_email} contacts →
-        </button>
-      )}
 
       {logs.length > 0 && (
         <div className="dx-results">
