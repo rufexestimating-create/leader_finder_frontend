@@ -36,7 +36,7 @@ const MODES: {
       { t: "Check the emails", d: "Asks each mail server so messages don't bounce." },
       { t: "Send your message", d: "Same email for everyone, within your daily limit." },
     ] },
-  { id: "smart", name: "With enrichment", tag: "Uses credits", icon: <Sparkles size={18} />,
+  { id: "smart", name: "With enrichment", tag: "Optional · Credits", icon: <Sparkles size={18} />,
     desc: "Finds the owner's own email, checks it, and writes each person a personal opening line.",
     best: "fewer, better leads", tools: ["Hunter", "Reoon", "AI writer"],
     flow: [
@@ -186,18 +186,22 @@ export function AgentPage({
   };
 
   const start = async () => {
-    if (step < 3) return goTo((step + 1) as 2 | 3);
+    const isSmartLaunch = form.mode === "smart" && step === 2;
+    if (step < 3 && !isSmartLaunch) return goTo((step + 1) as 2 | 3);
     const bulk = form.mode === "bulk";
     const directory = !bulk && form.source === "directory";
-    const gap = missing(3);
+    const gap = isSmartLaunch ? missing(2) : missing(3);
     if (gap) return notify(gap, true);
     setStarting(true);
     const target = directory
       ? { source: "directory", directory_url: form.directory_url.trim(), country: "United States", company_type: form.company_type, limit: form.limit }
       : { source: "maps", country: form.country, state: us ? form.state : "", city: form.city, company_type: form.company_type, limit: form.limit };
+    // Smart mode uses the saved message from settings (no manual message step)
+    const subject = isSmartLaunch ? (smartDefaults.subject || form.subject) : form.subject;
+    const message = isSmartLaunch ? (smartDefaults.message || form.message) : form.message;
     const body = bulk
-      ? { mode: "bulk", recipients, subject: form.subject, message: form.message }
-      : { mode: form.mode, ...target, subject: form.subject, message: form.message };
+      ? { mode: "bulk", recipients, subject, message }
+      : { mode: form.mode, ...target, subject, message };
     const res = await call<Record<string, unknown>>("/agent/runs", send("POST", body));
     setStarting(false);
     if (res.error || !res.data) return notify(res.error ?? "The agent couldn't start.", true);
@@ -458,6 +462,7 @@ export function AgentPage({
 
   /* ---------- Mission brief: the form ---------- */
   const bulk = form.mode === "bulk";
+  const smart = form.mode === "smart";
   const readFile = (file?: File | null) => {
     if (!file) return;
     file.text().then((t) => set("list", (form.list.trim() ? form.list.trim() + "\n" : "") + t));
@@ -485,12 +490,13 @@ export function AgentPage({
   const steps = [
     { n: 1 as const, title: "How it works", value: mode.name },
     { n: 2 as const, title: bulk ? "Who gets it" : "Where to look", value: where },
-    { n: 3 as const, title: "Your message", value: form.subject.trim() || "Not written yet" },
+    ...(!smart ? [{ n: 3 as const, title: "Your message", value: form.subject.trim() || "Not written yet" }] : []),
   ];
   const head = step === 1
     ? { title: "How should it work?", sub: "Click the card that fits you, then press Next at the bottom." }
     : step === 2
       ? bulk ? { title: "Who should get it?", sub: "Paste your list or upload a CSV. Every address is checked first." }
+        : smart ? { title: "Where should it look?", sub: "Pick a city and kind of company. AI will find owners and write a personal opening line for each." }
         : { title: "Where should it look?", sub: "A city to search, or a directory page that lists many companies." }
       : { title: "What should it say?", sub: form.mode === "smart"
           ? "Write the email. Where you put {{personal_line}}, the AI adds an opening line written for each person."
@@ -578,19 +584,19 @@ export function AgentPage({
             <>
             <fieldset className="ag-section">
               <legend><span>02</span> Where to look</legend>
-              <div className="ag-source" role="radiogroup" aria-label="Where to look">
-                <button type="button" role="radio" aria-checked={form.source === "maps"} className={form.source === "maps" ? "is-on" : ""} onClick={() => set("source", "maps")}>
-                  <Radar size={17} aria-hidden="true" />
-                  <span><strong>City search</strong><em>Google Maps, BBB and OpenStreetMap in one city</em></span>
-                </button>
-                {/* Directory extract: only available for without-enrichment mode */}
-                {form.mode === "fast" && (
+              {/* Source selector: hidden for smart mode (city search is the only option) */}
+              {form.mode !== "smart" && (
+                <div className="ag-source" role="radiogroup" aria-label="Where to look">
+                  <button type="button" role="radio" aria-checked={form.source === "maps"} className={form.source === "maps" ? "is-on" : ""} onClick={() => set("source", "maps")}>
+                    <Radar size={17} aria-hidden="true" />
+                    <span><strong>City search</strong><em>Google Maps, BBB and OpenStreetMap in one city</em></span>
+                  </button>
                   <button type="button" role="radio" aria-checked={form.source === "directory"} className={form.source === "directory" ? "is-on" : ""} onClick={() => set("source", "directory")}>
                     <Link2 size={17} aria-hidden="true" />
                     <span><strong>Extract from directory</strong><em>Scrape every company listed on a directory page</em></span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
               {form.mode === "fast" && form.source === "directory" ? (
                 <DirectoryExtractor />
               ) : (
@@ -635,7 +641,7 @@ export function AgentPage({
             </>
           ))}
 
-          {step === 3 && (
+          {step === 3 && !smart && (
             <fieldset className="ag-section">
               <legend><span>04</span> Message</legend>
               <label className="ag-field">
@@ -673,7 +679,7 @@ export function AgentPage({
             {!(step === 2 && form.mode === "fast" && form.source === "directory") && (
               <button type="submit" className="ag-launch" disabled={starting || (step === 3 && !mailbox.connected)} data-magnetic>
                 {starting ? <LoaderCircle size={20} className="spin" aria-hidden="true" /> : step === 3 ? <Zap size={20} aria-hidden="true" /> : null}
-                {starting ? "Launching…" : step === 1 ? `Next: ${bulk ? "your list" : "where to look"}` : step === 2 ? "Next: your message" : bulk ? `Send to ${recipients.length}` : "Launch agent"}
+                {starting ? "Launching…" : step === 1 ? `Next: ${bulk ? "your list" : "where to look"}` : step === 2 && smart ? "Launch agent" : step === 2 ? "Next: your message" : bulk ? `Send to ${recipients.length}` : "Launch agent"}
                 <ArrowRight size={20} aria-hidden="true" />
               </button>
             )}
