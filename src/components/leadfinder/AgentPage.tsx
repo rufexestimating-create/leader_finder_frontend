@@ -208,6 +208,17 @@ export function AgentPage({
     setRun(toAgentRun(res.data));
   };
 
+  const launchBulk = async (list: string) => {
+    if (!form.subject.trim() || !form.message.trim()) return notify("Subject aur message pehle likho.", true);
+    setStarting(true);
+    const recs = parseRecipients(list);
+    const body = { mode: "bulk", recipients: recs, subject: form.subject, message: form.message };
+    const res = await call<Record<string, unknown>>("/agent/runs", send("POST", body));
+    setStarting(false);
+    if (res.error || !res.data) return notify(res.error ?? "The agent couldn't start.", true);
+    setRun(toAgentRun(res.data));
+  };
+
   const checkDirectory = async () => {
     const url = form.directory_url.trim();
     if (!url) return notify("Paste the directory's link first.", true);
@@ -490,13 +501,14 @@ export function AgentPage({
   const steps = [
     { n: 1 as const, title: "How it works", value: mode.name },
     { n: 2 as const, title: bulk ? "Who gets it" : "Where to look", value: where },
-    ...(!smart ? [{ n: 3 as const, title: "Your message", value: form.subject.trim() || "Not written yet" }] : []),
+    ...(!smart && !(form.mode === "fast" && form.source === "directory") ? [{ n: 3 as const, title: "Your message", value: form.subject.trim() || "Not written yet" }] : []),
   ];
   const head = step === 1
     ? { title: "How should it work?", sub: "Click the card that fits you, then press Next at the bottom." }
     : step === 2
       ? bulk ? { title: "Who should get it?", sub: "Paste your list or upload a CSV. Every address is checked first." }
         : smart ? { title: "Where should it look?", sub: "Pick a city and kind of company. AI will find owners and write a personal opening line for each." }
+        : form.source === "directory" ? { title: "Extract from a directory", sub: "Write your message first. When extraction is done, the agent sends emails automatically." }
         : { title: "Where should it look?", sub: "A city to search, or a directory page that lists many companies." }
       : { title: "What should it say?", sub: form.mode === "smart"
           ? "Write the email. Where you put {{personal_line}}, the AI adds an opening line written for each person."
@@ -598,11 +610,29 @@ export function AgentPage({
                 </div>
               )}
               {form.mode === "fast" && form.source === "directory" ? (
-                <DirectoryExtractor onSendEmails={(list, count) => {
-                  setForm((f) => ({ ...f, mode: "bulk", list }));
-                  setStep(3);
-                  notify(`${count} email${count === 1 ? "" : "s"} ready — write your message and send.`);
-                }} />
+                <>
+                  <fieldset className="ag-section">
+                    <legend><span>02</span> Your message</legend>
+                    <label className="ag-field">
+                      <span className="ag-label">Subject</span>
+                      <input className="input" value={form.subject} onChange={(e) => set("subject", e.target.value)} maxLength={200}
+                        placeholder={`e.g. ${bulkDefaults.subject || "Drafting support for {{company}}"}`} />
+                    </label>
+                    <label className="ag-field">
+                      <span className="ag-label">Message</span>
+                      <textarea className="input ag-textarea" rows={7} value={form.message} onChange={(e) => set("message", e.target.value)} maxLength={5000}
+                        placeholder={bulkDefaults.message ? `For example:\n\n${bulkDefaults.message}` : "Write your message."} />
+                    </label>
+                    {!form.message && bulkDefaults.message && (
+                      <div className="ag-list-tools">
+                        <button type="button" className="ag-token ag-token--fill" onClick={() => setForm((f) => ({ ...f, subject: f.subject || bulkDefaults.subject, message: bulkDefaults.message }))}>
+                          Use my saved message
+                        </button>
+                      </div>
+                    )}
+                  </fieldset>
+                  <DirectoryExtractor onSendEmails={(list) => launchBulk(list)} />
+                </>
               ) : (
                 <div className="ag-fields">
                   <label className="ag-field">
