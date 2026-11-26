@@ -12,6 +12,7 @@ import { AGENT_ACTIVE, type AgentRun, type Mailbox, call, send, toAgentRun } fro
 import { MODE_LABEL, STATUS, canResume, place, progressOf, runName, siteOf, statusLabel, typeLabel } from "./agentRun";
 import { AgentsPanel } from "./AgentsPanel";
 import { Combobox, Select } from "./Dropdown";
+import { DirectoryExtractor } from "./DirectoryExtractor";
 
 const POLL_MS = 3000;
 const SIZES = [10, 25, 50, 100, 250, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 6000, 7500, 10000];
@@ -527,7 +528,7 @@ export function AgentPage({
                   const on = form.mode === m.id;
                   return (
                     <button key={m.id} type="button" role="radio" aria-checked={on} className={`ag-mode ag-mode2${on ? " is-on" : ""}`}
-                      onClick={() => setForm((f) => ({ ...f, mode: m.id }))}>
+                      onClick={() => setForm((f) => ({ ...f, mode: m.id, source: m.id === "smart" && f.source === "directory" ? "maps" : f.source }))}>
                       <span className="ag-mode2-top">
                         <span className="ag-mode-icon">{m.icon}</span>
                         <em className="ag-mode2-tag">{m.tag}</em>
@@ -582,41 +583,16 @@ export function AgentPage({
                   <Radar size={17} aria-hidden="true" />
                   <span><strong>City search</strong><em>Google Maps, BBB and OpenStreetMap in one city</em></span>
                 </button>
-                <button type="button" role="radio" aria-checked={form.source === "directory"} className={form.source === "directory" ? "is-on" : ""} onClick={() => set("source", "directory")}>
-                  <Link2 size={17} aria-hidden="true" />
-                  <span><strong>Directory link</strong><em>Every company on a directory you paste</em></span>
-                </button>
+                {/* Directory extract: only available for without-enrichment mode */}
+                {form.mode === "fast" && (
+                  <button type="button" role="radio" aria-checked={form.source === "directory"} className={form.source === "directory" ? "is-on" : ""} onClick={() => set("source", "directory")}>
+                    <Link2 size={17} aria-hidden="true" />
+                    <span><strong>Extract from directory</strong><em>Scrape every company listed on a directory page</em></span>
+                  </button>
+                )}
               </div>
-              {form.source === "directory" ? (
-                <div className="ag-fields">
-                  <div className="ag-field ag-field--wide">
-                    <span className="ag-label" id="dir-url-label">Directory link (the page that lists many companies)</span>
-                    <div className="ag-dir-row">
-                      <input className="input" type="url" inputMode="url" aria-labelledby="dir-url-label" value={form.directory_url} spellCheck={false}
-                        onChange={(e) => { set("directory_url", e.target.value); setDirCheck(null); }}
-                        placeholder="https://www.theconstructionusa.com/directory/?secteur=general-contractor&region=texas" />
-                      <button type="button" className="ag-btn ag-btn--ghost" onClick={checkDirectory} disabled={dirCheck?.state === "checking"}>
-                        {dirCheck?.state === "checking" ? <LoaderCircle size={15} className="spin" aria-hidden="true" /> : <ShieldCheck size={15} aria-hidden="true" />}
-                        Check link
-                      </button>
-                    </div>
-                    {dirCheck && dirCheck.url === form.directory_url.trim() && (
-                      <span className={`ag-dir-check is-${dirCheck.state}`} role="status">
-                        {dirCheck.state === "ok" ? <CircleCheck size={14} aria-hidden="true" /> : dirCheck.state === "bad" ? <CircleAlert size={14} aria-hidden="true" /> : null}
-                        {dirCheck.text}
-                      </span>
-                    )}
-                    <span className="ag-hint">
-                      Works best with theconstructionusa.com, exchange.construction and other GeoDirectory sites. Sites behind a
-                      &ldquo;checking your browser&rdquo; screen may not open. Companies you already have are skipped.
-                    </span>
-                  </div>
-                  <label className="ag-field">
-                    <span className="ag-label">Kind of company</span>
-                    <Select value={form.company_type} onChange={(v) => set("company_type", v)}
-                      options={COMPANY_TYPES.filter((t) => t.id !== "other").map((t) => ({ value: t.id, label: t.label }))} />
-                  </label>
-                </div>
+              {form.mode === "fast" && form.source === "directory" ? (
+                <DirectoryExtractor />
               ) : (
                 <div className="ag-fields">
                   <label className="ag-field">
@@ -642,7 +618,7 @@ export function AgentPage({
               )}
             </fieldset>
 
-            <fieldset className="ag-section">
+            {!(form.source === "directory") && <fieldset className="ag-section">
               <legend><span>03</span> How many companies</legend>
               <div className="ag-field ag-size-pick">
                 <Select ariaLabel="How many companies" value={String(form.limit)} onChange={(v) => set("limit", Number(v))}
@@ -655,7 +631,7 @@ export function AgentPage({
                       : "The agent stops as soon as it has this many new companies with a website."}
                 </p>
               </div>
-            </fieldset>
+            </fieldset>}
             </>
           ))}
 
@@ -694,11 +670,13 @@ export function AgentPage({
             <button type="button" className="ag-btn ag-btn--ghost" onClick={() => (step === 1 ? setShowForm(false) : setStep((step - 1) as 1 | 2))}>
               <ArrowLeft size={16} aria-hidden="true" /> {step === 1 ? "Cancel" : "Back"}
             </button>
-            <button type="submit" className="ag-launch" disabled={starting || (step === 3 && !mailbox.connected)} data-magnetic>
-              {starting ? <LoaderCircle size={20} className="spin" aria-hidden="true" /> : step === 3 ? <Zap size={20} aria-hidden="true" /> : null}
-              {starting ? "Launching…" : step === 1 ? `Next: ${bulk ? "your list" : "where to look"}` : step === 2 ? "Next: your message" : bulk ? `Send to ${recipients.length}` : "Launch agent"}
-              <ArrowRight size={20} aria-hidden="true" />
-            </button>
+            {!(step === 2 && form.mode === "fast" && form.source === "directory") && (
+              <button type="submit" className="ag-launch" disabled={starting || (step === 3 && !mailbox.connected)} data-magnetic>
+                {starting ? <LoaderCircle size={20} className="spin" aria-hidden="true" /> : step === 3 ? <Zap size={20} aria-hidden="true" /> : null}
+                {starting ? "Launching…" : step === 1 ? `Next: ${bulk ? "your list" : "where to look"}` : step === 2 ? "Next: your message" : bulk ? `Send to ${recipients.length}` : "Launch agent"}
+                <ArrowRight size={20} aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>
       </form>
