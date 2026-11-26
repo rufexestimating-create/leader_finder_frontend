@@ -598,7 +598,11 @@ export function AgentPage({
                 </div>
               )}
               {form.mode === "fast" && form.source === "directory" ? (
-                <DirectoryExtractor />
+                <DirectoryExtractor onSendEmails={(list, count) => {
+                  setForm((f) => ({ ...f, mode: "bulk", list }));
+                  setStep(3);
+                  notify(`${count} email${count === 1 ? "" : "s"} ready — write your message and send.`);
+                }} />
               ) : (
                 <div className="ag-fields">
                   <label className="ag-field">

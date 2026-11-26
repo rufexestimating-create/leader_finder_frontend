@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Layers, Square, Terminal, Zap } from "lucide-react";
 
-const EXTRACTOR_URL = process.env.NEXT_PUBLIC_EXTRACTOR_URL ?? "http://127.0.0.1:8000";
+const EXTRACTOR_URL = process.env.NEXT_PUBLIC_EXTRACTOR_URL ?? "http://127.0.0.1:8002";
 
 const PAGE_OPTS: { label: string; value: number | null }[] = [
   { label: "All", value: null },
@@ -17,11 +17,12 @@ const PAGE_OPTS: { label: string; value: number | null }[] = [
 type Stat = { total: number; with_website: number; with_email: number; with_phone: number; with_license: number };
 const EMPTY: Stat = { total: 0, with_website: 0, with_email: 0, with_phone: 0, with_license: 0 };
 
-export function DirectoryExtractor() {
+export function DirectoryExtractor({ onSendEmails }: { onSendEmails?: (list: string, count: number) => void }) {
   const [url, setUrl] = useState("");
   const [fast, setFast] = useState(true);
   const [maxPages, setMaxPages] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState<Stat>(EMPTY);
   const [logs, setLogs] = useState<string[]>([]);
@@ -43,7 +44,7 @@ export function DirectoryExtractor() {
       setProgress(s.progress ?? 0);
       if (s.stats) setStats(s.stats);
       if (l.logs?.length) { setLogs((p) => [...p, ...l.logs]); logOff.current = l.total; }
-      if (s.status !== "running") { setRunning(false); stopPoll(); }
+      if (s.status !== "running") { setRunning(false); setDone(s.status === "done"); stopPoll(); }
     } catch {}
   }, []);
 
@@ -51,7 +52,7 @@ export function DirectoryExtractor() {
 
   const start = async () => {
     if (!url.trim()) return;
-    setLogs([]); logOff.current = 0; setProgress(0); setStats(EMPTY); setRunning(true);
+    setLogs([]); logOff.current = 0; setProgress(0); setStats(EMPTY); setRunning(true); setDone(false);
     try {
       await fetch(`${EXTRACTOR_URL}/api/extract`, {
         method: "POST",
@@ -105,6 +106,22 @@ export function DirectoryExtractor() {
             : <><Zap size={16} aria-hidden="true" /> Start Extraction</>}
         </button>
       </div>
+
+      {done && stats.with_email > 0 && onSendEmails && (
+        <button type="button" className="ag-launch dx-send" onClick={async () => {
+          try {
+            const r = await fetch(`${EXTRACTOR_URL}/api/results`);
+            const d = await r.json();
+            const lines: string[] = (d.results ?? []).flatMap((rec: Record<string, unknown>) => {
+              const emails = (rec.emails as string[] | undefined) ?? (rec.email ? [rec.email as string] : []);
+              return emails.map((e) => `${e}, ${(rec.name as string) || ""}`);
+            });
+            onSendEmails(lines.join("\n"), lines.length);
+          } catch {}
+        }}>
+          Send emails to {stats.with_email} contacts →
+        </button>
+      )}
 
       {logs.length > 0 && (
         <div className="dx-results">

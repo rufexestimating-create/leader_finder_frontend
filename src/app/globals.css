@@ -5462,3 +5462,4 @@ body { background: var(--bg); }
 .dx-bar { flex: 1; height: 4px; background: var(--border); border-radius: 999px; overflow: hidden; }
 .dx-bar i { display: block; height: 100%; background: var(--orange); border-radius: 999px; transition: width 0.4s var(--ease-out); }
 .dx-pct { font: 500 0.8rem var(--font-mono); color: var(--text-2); min-width: 2.5rem; text-align: right; }
+.dx-send { width: 100%; min-height: 52px !important; font-size: 1rem !important; }
