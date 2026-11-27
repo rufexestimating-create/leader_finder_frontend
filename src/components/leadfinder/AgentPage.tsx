@@ -209,10 +209,12 @@ export function AgentPage({
   };
 
   const launchBulk = async (list: string) => {
-    if (!form.subject.trim() || !form.message.trim()) return notify("Subject aur message pehle likho.", true);
+    const subject = bulkDefaults.subject || form.subject;
+    const message = bulkDefaults.message || form.message;
+    if (!subject.trim() || !message.trim()) return notify("Settings mein pehle apna message save karo.", true);
     setStarting(true);
     const recs = parseRecipients(list);
-    const body = { mode: "bulk", recipients: recs, subject: form.subject, message: form.message };
+    const body = { mode: "bulk", recipients: recs, subject, message };
     const res = await call<Record<string, unknown>>("/agent/runs", send("POST", body));
     setStarting(false);
     if (res.error || !res.data) return notify(res.error ?? "The agent couldn't start.", true);
@@ -508,7 +510,7 @@ export function AgentPage({
     : step === 2
       ? bulk ? { title: "Who should get it?", sub: "Paste your list or upload a CSV. Every address is checked first." }
         : smart ? { title: "Where should it look?", sub: "Pick a city and kind of company. AI will find owners and write a personal opening line for each." }
-        : form.source === "directory" ? { title: "Extract from a directory", sub: "Write your message first. When extraction is done, the agent sends emails automatically." }
+        : form.source === "directory" ? { title: "Extract from a directory", sub: "Paste the directory link and start extraction. The agent sends emails automatically using your saved message." }
         : { title: "Where should it look?", sub: "A city to search, or a directory page that lists many companies." }
       : { title: "What should it say?", sub: form.mode === "smart"
           ? "Write the email. Where you put {{personal_line}}, the AI adds an opening line written for each person."
@@ -610,29 +612,7 @@ export function AgentPage({
                 </div>
               )}
               {form.mode === "fast" && form.source === "directory" ? (
-                <>
-                  <fieldset className="ag-section">
-                    <legend><span>02</span> Your message</legend>
-                    <label className="ag-field">
-                      <span className="ag-label">Subject</span>
-                      <input className="input" value={form.subject} onChange={(e) => set("subject", e.target.value)} maxLength={200}
-                        placeholder={`e.g. ${bulkDefaults.subject || "Drafting support for {{company}}"}`} />
-                    </label>
-                    <label className="ag-field">
-                      <span className="ag-label">Message</span>
-                      <textarea className="input ag-textarea" rows={7} value={form.message} onChange={(e) => set("message", e.target.value)} maxLength={5000}
-                        placeholder={bulkDefaults.message ? `For example:\n\n${bulkDefaults.message}` : "Write your message."} />
-                    </label>
-                    {!form.message && bulkDefaults.message && (
-                      <div className="ag-list-tools">
-                        <button type="button" className="ag-token ag-token--fill" onClick={() => setForm((f) => ({ ...f, subject: f.subject || bulkDefaults.subject, message: bulkDefaults.message }))}>
-                          Use my saved message
-                        </button>
-                      </div>
-                    )}
-                  </fieldset>
-                  <DirectoryExtractor onSendEmails={(list) => launchBulk(list)} />
-                </>
+                <DirectoryExtractor onSendEmails={(list) => launchBulk(list)} />
               ) : (
                 <div className="ag-fields">
                   <label className="ag-field">
