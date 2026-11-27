@@ -601,7 +601,7 @@ export function AgentPage({
               {form.mode === "fast" && form.source === "directory" ? (
                 <DirectoryExtractor onSendEmails={(list, count) => {
                   setForm((f) => ({ ...f, mode: "bulk", list }));
-                  setStep(3);
+                  setTimeout(() => setStep(3), 0);
                   notify(`${count} contact${count === 1 ? "" : "s"} ready — write your message.`);
                 }} />
               ) : (
