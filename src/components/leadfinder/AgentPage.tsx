@@ -208,19 +208,6 @@ export function AgentPage({
     setRun(toAgentRun(res.data));
   };
 
-  const launchBulk = async (list: string) => {
-    const subject = bulkDefaults.subject || form.subject;
-    const message = bulkDefaults.message || form.message;
-    if (!subject.trim() || !message.trim()) return notify("Settings mein pehle apna message save karo.", true);
-    setStarting(true);
-    const recs = parseRecipients(list);
-    const body = { mode: "bulk", recipients: recs, subject, message };
-    const res = await call<Record<string, unknown>>("/agent/runs", send("POST", body));
-    setStarting(false);
-    if (res.error || !res.data) return notify(res.error ?? "The agent couldn't start.", true);
-    setRun(toAgentRun(res.data));
-  };
-
   const checkDirectory = async () => {
     const url = form.directory_url.trim();
     if (!url) return notify("Paste the directory's link first.", true);
@@ -503,14 +490,14 @@ export function AgentPage({
   const steps = [
     { n: 1 as const, title: "How it works", value: mode.name },
     { n: 2 as const, title: bulk ? "Who gets it" : "Where to look", value: where },
-    ...(!smart && !(form.mode === "fast" && form.source === "directory") ? [{ n: 3 as const, title: "Your message", value: form.subject.trim() || "Not written yet" }] : []),
+    ...(!smart ? [{ n: 3 as const, title: "Your message", value: form.subject.trim() || "Not written yet" }] : []),
   ];
   const head = step === 1
     ? { title: "How should it work?", sub: "Click the card that fits you, then press Next at the bottom." }
     : step === 2
       ? bulk ? { title: "Who should get it?", sub: "Paste your list or upload a CSV. Every address is checked first." }
         : smart ? { title: "Where should it look?", sub: "Pick a city and kind of company. AI will find owners and write a personal opening line for each." }
-        : form.source === "directory" ? { title: "Extract from a directory", sub: "Paste the directory link and start extraction. The agent sends emails automatically using your saved message." }
+        : form.source === "directory" ? { title: "Extract from a directory", sub: "Paste the directory link and start extraction. When done, write your message and launch." }
         : { title: "Where should it look?", sub: "A city to search, or a directory page that lists many companies." }
       : { title: "What should it say?", sub: form.mode === "smart"
           ? "Write the email. Where you put {{personal_line}}, the AI adds an opening line written for each person."
@@ -612,7 +599,11 @@ export function AgentPage({
                 </div>
               )}
               {form.mode === "fast" && form.source === "directory" ? (
-                <DirectoryExtractor onSendEmails={(list) => launchBulk(list)} />
+                <DirectoryExtractor onSendEmails={(list, count) => {
+                  setForm((f) => ({ ...f, mode: "bulk", list }));
+                  setStep(3);
+                  notify(`${count} contact${count === 1 ? "" : "s"} ready — write your message.`);
+                }} />
               ) : (
                 <div className="ag-fields">
                   <label className="ag-field">
